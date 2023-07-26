@@ -136,7 +136,7 @@ PRESTOOBJS = amoeba.o atwood.o barycenter.o birdzap.o cand_output.o\
 	rzinterp.o rzwinterp.o select.o sorter.o swapendian.o\
 	transpose.o twopass.o twopass_real_fwd.o\
 	twopass_real_inv.o vectors.o mask.o\
-	fitsfile.o hget.o hput.o imio.o djcl.o range_parse.o
+	fitsfile.o hget.o hput.o imio.o djcl.o range_parse.o pulscan.o
 
 INSTRUMENTOBJS = backend_common.o zerodm.o sigproc_fb.o psrfits.o
 
@@ -154,7 +154,7 @@ BINARIES = makedata makeinf mjd2cal realfft quicklook\
 	dat2sdat sdat2dat downsample rednoise un_sc_td bincand\
 	psrorbit window plotbincand prepfold show_pfd\
 	rfifind zapbirds explorefft exploredat\
-	weight_psrfits fitsdelrow fitsdelcol psrfits_dumparrays
+	weight_psrfits fitsdelrow fitsdelcol psrfits_dumparrays pulscan
 
 all: libpresto slalib binaries
 
@@ -335,6 +335,9 @@ fitsdelrow: fitsdelrow.o
 
 fitsdelcol: fitsdelcol.o
 	$(CC) $(CLINKFLAGS) -o $(PRESTO)/bin/$@ fitsdelcol.o $(CFITSIOLINK) -lm
+
+pulscan: pulscan.o libpresto
+	$(CC) $(CLINKFLAGS) -o $(PRESTO)/bin/$@ pulscan.o $(PRESTOLINK) -lm
 
 clean:
 	rm -f *.o *~ *#
