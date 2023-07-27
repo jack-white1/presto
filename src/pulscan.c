@@ -5,7 +5,7 @@
 // The number of candidates per boxcar is set by the user, default 10
 
 // The output is a text/binary file called INPUTFILENAME.bctxtcand (or .bccand for binary) with the following columns:
-// boxcar_width frequency_bin_index power   sigma
+// sigma,power,period_ms,frequency,frequency_index,fdot,boxcar_width,acceleration
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,17 +13,47 @@
 #include <string.h>
 #include <time.h>
 #include <omp.h>
-#include "presto.h"
+#include "accel.h"
 
 #define MAX_DATA_SIZE 10000000 // assume file won't be larger than this, 10M samples, increase if required
 #define DEFAULT_CANDIDATES_PER_BOXCAR 10
+#define SPEED_OF_LIGHT 299792458.0
 
 typedef struct {
-    int boxcar_width;
-    int frequency_index;
-    float power;
     double sigma;
+    float power;
+    float period_ms;
+    float frequency;
+    int frequency_index;
+    float fdot;
+    int boxcar_width;
+    float acceleration;
 } Candidate;
+
+int compare_candidates(const void *a, const void *b) {
+    Candidate *candidateA = (Candidate *)a;
+    Candidate *candidateB = (Candidate *)b;
+    if(candidateA->sigma > candidateB->sigma) return -1; // for descending order
+    if(candidateA->sigma < candidateB->sigma) return 1;
+    return 0;
+}
+
+
+float fdot_from_boxcar_width(int boxcar_width, float observation_time_seconds){
+    return boxcar_width / (observation_time_seconds*observation_time_seconds);
+}
+
+float acceleration_from_fdot(float fdot, float frequency){
+    return fdot * SPEED_OF_LIGHT / frequency;
+}
+
+float frequency_from_tobs(float tobs, int frequency_index){
+    return frequency_index / tobs;
+}
+
+float period_ms_from_frequency(float frequency){
+    return 1000.0 / frequency;
+}
 
 float* compute_magnitude(const char *filepath, int *magnitude_size) {
     printf("Reading file: %s\n", filepath);
@@ -50,25 +80,25 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     // compute mean and variance of real and imaginary components, ignoring DC component
 
     float real_sum = 0.0, imag_sum = 0.0;
-    for(int i = 1; i < n / 2; i++) {
+    for(int i = 1; i < (int) n / 2; i++) {
         real_sum += data[2 * i];
         imag_sum += data[2 * i + 1];
     }
-    float real_mean = real_sum / ((n-1) / 2);
-    float imag_mean = imag_sum / ((n-1) / 2);
+    float real_mean = real_sum / (((int) n-1) / 2);
+    float imag_mean = imag_sum / (((int) n-1) / 2);
 
     float real_variance = 0.0, imag_variance = 0.0;
-    for(int i = 1; i < n / 2; i++) {
+    for(int i = 1; i < (int) n / 2; i++) {
         real_variance += pow((data[2 * i] - real_mean), 2);
         imag_variance += pow((data[2 * i + 1] - imag_mean), 2);
     }
-    real_variance /= ((n-1) / 2);
-    imag_variance /= ((n-1) / 2);
+    real_variance /= (((int) n-1) / 2);
+    imag_variance /= (((int) n-1) / 2);
 
     float real_stdev = sqrt(real_variance);
     float imag_stdev = sqrt(imag_variance);
 
-    float* magnitude = (float*) malloc(sizeof(float) * n / 2);
+    float* magnitude = (float*) malloc(sizeof(float) * (int) n / 2);
     if(magnitude == NULL) {
         printf("Memory allocation failed\n");
         free(data);
@@ -78,7 +108,7 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     // set DC component of magnitude spectrum to 0
     magnitude[0] = 0.0f;
 
-    for (int i = 1; i < n / 2; i++) {
+    for (int i = 1; i < (int) n / 2; i++) {
         float norm_real = (data[2 * i] - real_mean) / real_stdev;
         float norm_imag = (data[2 * i + 1] - imag_mean) / imag_stdev;
         magnitude[i] = pow(norm_real, 2) + pow(norm_imag, 2);
@@ -88,14 +118,14 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     free(data);
 
     // pass the size of the magnitude array back through the output parameter
-    *magnitude_size = n / 2;
+    *magnitude_size = (int) n / 2;
 
     // return the pointer to the magnitude array
     return magnitude;
 }
 
 
-void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar) {
+void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds) {
     printf("Computing boxcar filter candidates for %d boxcar widths...\n", max_boxcar_width);
 
     // Extract file name without extension
@@ -113,7 +143,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         printf("Could not open file for writing text results.\n");
         return;
     }
-    fprintf(text_candidates_file, "boxcar_width,frequency_bin_index,power,sigma\n");
+    fprintf(text_candidates_file, "sigma,power,period[ms],frequency[hz],frequency_index[bin],fdot[hz/s],boxcar_width[bins],acceleration[m/s^2]\n");
 
     // Create new filename
     char binary_filename[255];
@@ -142,7 +172,6 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         valid_length -= 1;
         offset += 1;
 
-        float current_max = 0;
         #pragma omp parallel for
         for (int i = 0; i < valid_length; i++) {
             temp_sum_array[i] += magnitudes_array[i + offset];
@@ -154,19 +183,74 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         for (int i = 0; i < candidates_per_boxcar; i++) {
             float local_max_power = -INFINITY;
             int window_start = i * window_length;
+
+            // initialise the candidate
+            top_candidates[boxcar_width][i].sigma = 0.0;
+            top_candidates[boxcar_width][i].power = 0.0;
+            top_candidates[boxcar_width][i].period_ms = 0.0;
+            top_candidates[boxcar_width][i].frequency = 0.0;
+            top_candidates[boxcar_width][i].frequency_index = 0;
+            top_candidates[boxcar_width][i].fdot = 0.0;
+            top_candidates[boxcar_width][i].boxcar_width = 0;
+            top_candidates[boxcar_width][i].acceleration = 0.0;
+
+
             for (int j = window_start; j < window_start + window_length; j++){
                 if (temp_sum_array[j] > local_max_power) {
                     local_max_power = temp_sum_array[j];
-                    top_candidates[boxcar_width][i].frequency_index = j;
+                    top_candidates[boxcar_width][i].frequency_index = j+window_start;
                     top_candidates[boxcar_width][i].power = local_max_power;
                     top_candidates[boxcar_width][i].boxcar_width = boxcar_width;
+                    if (observation_time_seconds > 0) {
+                        top_candidates[boxcar_width][i].frequency = frequency_from_tobs(observation_time_seconds,top_candidates[boxcar_width][i].frequency_index);
+                        top_candidates[boxcar_width][i].period_ms = period_ms_from_frequency(top_candidates[boxcar_width][i].frequency);
+                        top_candidates[boxcar_width][i].fdot = fdot_from_boxcar_width(top_candidates[boxcar_width][i].boxcar_width, observation_time_seconds);
+                        top_candidates[boxcar_width][i].acceleration = acceleration_from_fdot(top_candidates[boxcar_width][i].fdot, top_candidates[boxcar_width][i].frequency);
+                    }
                 }
             }
-            top_candidates[boxcar_width][i].sigma = candidate_sigma(local_max_power/2, boxcar_width, max_boxcar_width);
-            fprintf(text_candidates_file, "%d,%d,%f,%lf\n", top_candidates[boxcar_width][i].boxcar_width, top_candidates[boxcar_width][i].frequency_index, top_candidates[boxcar_width][i].power, candidate_sigma(top_candidates[boxcar_width][i].power*0.5, top_candidates[boxcar_width][i].boxcar_width, max_boxcar_width));
-            fwrite(&top_candidates[boxcar_width][i], sizeof(Candidate), 1, binary_candidates_file);
+            top_candidates[boxcar_width][i].sigma = candidate_sigma(top_candidates[boxcar_width][i].power*0.5, 
+                                                                    top_candidates[boxcar_width][i].boxcar_width, 
+                                                                    max_boxcar_width);
+            
+            //fprintf(text_candidates_file, "%lf,%f,%f,%f,%d,%f,%d,%f\n", 
+            //        top_candidates[boxcar_width][i].sigma, 
+            //        top_candidates[boxcar_width][i].power, 
+            //        top_candidates[boxcar_width][i].period_ms, 
+            //        top_candidates[boxcar_width][i].frequency, 
+            //        top_candidates[boxcar_width][i].frequency_index, 
+            //        top_candidates[boxcar_width][i].fdot, 
+            //        top_candidates[boxcar_width][i].boxcar_width, 
+            //        top_candidates[boxcar_width][i].acceleration);
+            
+            //fwrite(&top_candidates[boxcar_width][i], sizeof(Candidate), 1, binary_candidates_file);
+
         }
     }
+
+    Candidate all_candidates[max_boxcar_width * candidates_per_boxcar];
+    for (int i = 0; i < max_boxcar_width; i++) {
+        for (int j = 0; j < candidates_per_boxcar; j++) {
+            all_candidates[i*candidates_per_boxcar + j] = top_candidates[i][j];
+        }
+    }
+
+    qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
+
+    for (int i = 0; i < max_boxcar_width*candidates_per_boxcar; i++){
+        fprintf(text_candidates_file, "%lf,%f,%f,%f,%d,%f,%d,%f\n", 
+            all_candidates[i].sigma, 
+            all_candidates[i].power, 
+            all_candidates[i].period_ms, 
+            all_candidates[i].frequency, 
+            all_candidates[i].frequency_index, 
+            all_candidates[i].fdot, 
+            all_candidates[i].boxcar_width, 
+            all_candidates[i].acceleration);
+        fwrite(&all_candidates[i], sizeof(Candidate), 1, binary_candidates_file);
+    }
+
+
 
     free(temp_sum_array);
     fclose(text_candidates_file);
@@ -177,13 +261,14 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        printf("USAGE: %s file [-ncpus int] [-zmax int] [-candidates int]\n", argv[0]);
+        printf("USAGE: %s file [-ncpus int] [-zmax int] [-candidates int] [-tobs float]\n", argv[0]);
         printf("Required arguments:\n");
         printf("\tfile [string]\tThe input file path (.fft file output of PRESTO realfft)\n");
         printf("Optional arguments:\n");
         printf("\t-ncpus [int]\tThe number of OpenMP threads to use (default 1)\n");
         printf("\t-zmax [int]\tThe max boxcar width (default = 1200, max = the size of your input data)\n");
         printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be = zmax * candidates\n");
+        printf("\t-tobs [float]\tThe observation time (default = 0.0)\n");
         return 1;
     }
 
@@ -214,6 +299,15 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Get the observation time from the command line arguments
+    // If not provided, default to 0.0
+    float observation_time_seconds = 0.0f;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-tobs") == 0 && i+1 < argc) {
+            observation_time_seconds = atof(argv[i+1]);
+        }
+    }
+
     omp_set_num_threads(num_threads);
 
     int magnitude_array_size;
@@ -224,7 +318,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    recursive_boxcar_filter(magnitudes, magnitude_array_size, max_boxcar_width, argv[1], candidates_per_boxcar);
+    recursive_boxcar_filter(magnitudes, magnitude_array_size, max_boxcar_width, argv[1], candidates_per_boxcar, observation_time_seconds);
 
     return 0;
 }
