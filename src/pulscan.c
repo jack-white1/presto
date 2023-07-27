@@ -47,8 +47,8 @@ float acceleration_from_fdot(float fdot, float frequency){
     return fdot * SPEED_OF_LIGHT / frequency;
 }
 
-float frequency_from_tobs(float tobs, int frequency_index){
-    return frequency_index / tobs;
+float frequency_from_observation_time_seconds(float observation_time_seconds, int frequency_index){
+    return frequency_index / observation_time_seconds;
 }
 
 float period_ms_from_frequency(float frequency){
@@ -202,7 +202,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                     top_candidates[boxcar_width][i].power = local_max_power;
                     top_candidates[boxcar_width][i].boxcar_width = boxcar_width;
                     if (observation_time_seconds > 0) {
-                        top_candidates[boxcar_width][i].frequency = frequency_from_tobs(observation_time_seconds,top_candidates[boxcar_width][i].frequency_index);
+                        top_candidates[boxcar_width][i].frequency = frequency_from_observation_time_seconds(observation_time_seconds,top_candidates[boxcar_width][i].frequency_index);
                         top_candidates[boxcar_width][i].period_ms = period_ms_from_frequency(top_candidates[boxcar_width][i].frequency);
                         top_candidates[boxcar_width][i].fdot = fdot_from_boxcar_width(top_candidates[boxcar_width][i].boxcar_width, observation_time_seconds);
                         top_candidates[boxcar_width][i].acceleration = acceleration_from_fdot(top_candidates[boxcar_width][i].fdot, top_candidates[boxcar_width][i].frequency);
@@ -268,7 +268,7 @@ int main(int argc, char *argv[]) {
         printf("\t-ncpus [int]\tThe number of OpenMP threads to use (default 1)\n");
         printf("\t-zmax [int]\tThe max boxcar width (default = 1200, max = the size of your input data)\n");
         printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be = zmax * candidates\n");
-        printf("\t-tobs [float]\tThe observation time (default = 0.0)\n");
+        printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
         return 1;
     }
 
@@ -306,6 +306,10 @@ int main(int argc, char *argv[]) {
         if (strcmp(argv[i], "-tobs") == 0 && i+1 < argc) {
             observation_time_seconds = atof(argv[i+1]);
         }
+    }
+
+    if (observation_time_seconds == 0.0f) {
+        printf("WARNING: No observation time provided, frequency and acceleration values will be inaccurate.\n");
     }
 
     omp_set_num_threads(num_threads);
