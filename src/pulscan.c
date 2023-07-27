@@ -163,7 +163,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                 }
             }
             top_candidates[boxcar_width][i].sigma = candidate_sigma(local_max_power/2, boxcar_width, max_boxcar_width);
-            fprintf(text_candidates_file, "%d,%d,%f,%lf\n", top_candidates[boxcar_width][i].boxcar_width, top_candidates[boxcar_width][i].frequency_index, top_candidates[boxcar_width][i].power, candidate_sigma(top_candidates[boxcar_width][i].power/2, top_candidates[boxcar_width][i].boxcar_width, max_boxcar_width));
+            fprintf(text_candidates_file, "%d,%d,%f,%lf\n", top_candidates[boxcar_width][i].boxcar_width, top_candidates[boxcar_width][i].frequency_index, top_candidates[boxcar_width][i].power, candidate_sigma(top_candidates[boxcar_width][i].power*0.5, top_candidates[boxcar_width][i].boxcar_width, max_boxcar_width));
             fwrite(&top_candidates[boxcar_width][i], sizeof(Candidate), 1, binary_candidates_file);
         }
     }

@@ -30,6 +30,7 @@ bin/plotbincand
 bin/prepdata
 bin/prepfold
 bin/prepsubband
+bin/pulscan
 bin/psrorbit
 bin/psrfits_dumparrays
 bin/quicklook
