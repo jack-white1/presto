@@ -218,10 +218,10 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         }
     }
 
-    Candidate all_candidates[max_boxcar_width * candidates_per_boxcar];
+    Candidate *all_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
     for (int i = 0; i < max_boxcar_width; i++) {
         for (int j = 0; j < candidates_per_boxcar; j++) {
-            all_candidates[i*candidates_per_boxcar + j] = top_candidates[i][j];
+            all_candidates[i*candidates_per_boxcar + j] = top_candidates[i*candidates_per_boxcar + j];
         }
     }
 
