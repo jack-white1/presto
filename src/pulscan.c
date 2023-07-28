@@ -15,7 +15,7 @@
 #include <omp.h>
 #include "accel.h"
 
-#define MAX_DATA_SIZE 10000000 // assume file won't be larger than this, 10M samples, increase if required
+#define MAX_DATA_SIZE 1000000000 // assume file won't be larger than this, 10M samples, increase if required
 #define DEFAULT_CANDIDATES_PER_BOXCAR 10
 #define SPEED_OF_LIGHT 299792458.0
 
@@ -212,19 +212,6 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
             top_candidates[boxcar_width][i].sigma = candidate_sigma(top_candidates[boxcar_width][i].power*0.5, 
                                                                     top_candidates[boxcar_width][i].boxcar_width, 
                                                                     max_boxcar_width);
-            
-            //fprintf(text_candidates_file, "%lf,%f,%f,%f,%d,%f,%d,%f\n", 
-            //        top_candidates[boxcar_width][i].sigma, 
-            //        top_candidates[boxcar_width][i].power, 
-            //        top_candidates[boxcar_width][i].period_ms, 
-            //        top_candidates[boxcar_width][i].frequency, 
-            //        top_candidates[boxcar_width][i].frequency_index, 
-            //        top_candidates[boxcar_width][i].fdot, 
-            //        top_candidates[boxcar_width][i].boxcar_width, 
-            //        top_candidates[boxcar_width][i].acceleration);
-            
-            //fwrite(&top_candidates[boxcar_width][i], sizeof(Candidate), 1, binary_candidates_file);
-
         }
     }
 
@@ -310,6 +297,7 @@ int main(int argc, char *argv[]) {
 
     if (observation_time_seconds == 0.0f) {
         printf("WARNING: No observation time provided, frequency and acceleration values will be inaccurate.\n");
+        printf("[Optional] Please specify an observation time with the -tobs flag, e.g. -tobs 600.0\n");
     }
 
     omp_set_num_threads(num_threads);
