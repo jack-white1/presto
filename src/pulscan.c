@@ -130,7 +130,7 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
 }
 
 
-void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold) {
+void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold, int output_boxcar_width) {
     printf("Computing boxcar filter candidates for %d boxcar widths...\n", max_boxcar_width);
 
     // Extract file name without extension
@@ -222,6 +222,18 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                                                                     top_candidates[candidate_index].boxcar_width, 
                                                                     max_boxcar_width);
         }
+
+        if (boxcar_width == output_boxcar_width){
+            FILE *boxcar_file = fopen("boxcar_filtered_timeseries.dat", "w");
+            printf("Storing boxcar filtered timeseries in boxcar_filtered_timeseries.dat\n");
+            if (boxcar_file == NULL) {
+                printf("Could not open file for writing boxcar filtered timeseries.\n");
+                return;
+            }
+            for (int i = 0; i < valid_length; i++) {
+                fprintf(boxcar_file, "%f\n", temp_sum_array[i]);
+            }
+        }
     }
 
     Candidate *all_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
@@ -234,7 +246,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
 
     for (int i = 2; i < max_boxcar_width*candidates_per_boxcar; i++){
-        if (sigma_threshold != 0.0 && all_candidates[i].sigma > sigma_threshold ){
+        if (all_candidates[i].sigma > sigma_threshold ){
         fprintf(text_candidates_file, "%lf,%f,%f,%f,%d,%f,%d,%f\n", 
             all_candidates[i].sigma, 
             all_candidates[i].power, 
@@ -268,6 +280,7 @@ int main(int argc, char *argv[]) {
         printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be = zmax * candidates\n");
         printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
         printf("\t-sigma [float]\tThe sigma threshold (default = 0.0), candidates with sigma below this value will not be written to the output files\n");
+        printf("\t-output_boxcar_width [int]\tThe boxcar width to output the boxcar filtered timeseries for (default = 0), if 0, no output will be written\n");
         return 1;
     }
 
@@ -318,6 +331,15 @@ int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-sigma") == 0 && i+1 < argc) {
             sigma_threshold = atof(argv[i+1]);
+        }
+    }
+
+    // Get the boxcar width to output the boxcar filtered timeseries for from the command line arguments
+    // If not provided, default to 0
+    int output_boxcar_width = 0;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-output_boxcar_width") == 0 && i+1 < argc) {
+            output_boxcar_width = atoi(argv[i+1]);
         }
     }
 
