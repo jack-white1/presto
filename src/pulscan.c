@@ -47,7 +47,7 @@ float acceleration_from_fdot(float fdot, float frequency){
     return fdot * SPEED_OF_LIGHT / frequency;
 }
 
-float frequency_from_observation_time_seconds(float observation_time_seconds, int frequency_index){
+float frequency_from_observation_time_seconds(float observation_time_seconds, int frequency_index, int lowest_frequency_bin){
     return frequency_index / observation_time_seconds;
 }
 
@@ -137,7 +137,7 @@ float* compute_magnitude(const char *filepath, int *magnitude_size, int rlo) {
 }
 
 
-void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold, int output_boxcar_width, int lowest_frequency_bin) {
+void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold) {
     printf("Computing boxcar filter candidates for %d boxcar widths...\n", max_boxcar_width);
 
     // Extract file name without extension
@@ -365,7 +365,7 @@ int main(int argc, char *argv[]) {
     omp_set_num_threads(num_threads);
 
     int magnitude_array_size;
-    float* magnitudes = compute_magnitude(argv[1], &magnitude_array_size);
+    float* magnitudes = compute_magnitude(argv[1], &magnitude_array_size, lowest_frequency_bin);
 
     if(magnitudes == NULL) {
         printf("Failed to compute magnitudes.\n");
@@ -379,8 +379,7 @@ int main(int argc, char *argv[]) {
         candidates_per_boxcar, 
         observation_time_seconds, 
         sigma_threshold, 
-        output_boxcar_width,
-        lowest_frequency_bin);
+        output_boxcar_width);
 
     return 0;
 }
