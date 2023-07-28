@@ -55,7 +55,7 @@ float period_ms_from_frequency(float frequency){
     return 1000.0 / frequency;
 }
 
-float* compute_magnitude(const char *filepath, int *magnitude_size) {
+float* compute_magnitude(const char *filepath, int *magnitude_size, int rlo) {
     printf("Reading file: %s\n", filepath);
 
     FILE *f = fopen(filepath, "rb");
@@ -77,23 +77,30 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
         return NULL;
     }
 
+    // subtract lowest_frequency_bin from n/2 to get the number of frequency bins to divide by
+    int n_divisor = ((int) n / 2) - lowest_frequency_bin;
+
     // compute mean and variance of real and imaginary components, ignoring DC component
 
     float real_sum = 0.0, imag_sum = 0.0;
-    for(int i = 1; i < (int) n / 2; i++) {
+    for(int i = lowest_frequency_bin; i < (int) n / 2; i++) {
         real_sum += data[2 * i];
         imag_sum += data[2 * i + 1];
     }
-    float real_mean = real_sum / (((int) n-1) / 2);
-    float imag_mean = imag_sum / (((int) n-1) / 2);
+    //float real_mean = real_sum / (((int) n-1) / 2);
+    //float imag_mean = imag_sum / (((int) n-1) / 2);
+    float real_mean = real_sum / n_divisor;
+    float imag_mean = imag_sum / n_divisor;
 
     float real_variance = 0.0, imag_variance = 0.0;
-    for(int i = 1; i < (int) n / 2; i++) {
+    for(int i = lowest_frequency_bin; i < (int) n / 2; i++) {
         real_variance += pow((data[2 * i] - real_mean), 2);
         imag_variance += pow((data[2 * i + 1] - imag_mean), 2);
     }
-    real_variance /= (((int) n-1) / 2);
-    imag_variance /= (((int) n-1) / 2);
+    //real_variance /= (((int) n-1) / 2);
+    //imag_variance /= (((int) n-1) / 2);    
+    real_variance /= n_divisor;
+    imag_variance /= n_divisor;
 
     float real_stdev = sqrt(real_variance);
     float imag_stdev = sqrt(imag_variance);
@@ -283,6 +290,7 @@ int main(int argc, char *argv[]) {
         printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
         printf("\t-sigma [float]\tThe sigma threshold (default = 0.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-output_boxcar_width [int]\tThe boxcar width to output the boxcar filtered timeseries for (default = 0), if 0, no output will be written\n");
+        printf("\t-rlo [int]\tThe lowest frequency bin to start the search (default = 0)\n");
         return 1;
     }
 
@@ -345,6 +353,15 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Get the lowest frequency bin to start the search from the command line arguments
+    // If not provided, default to 1
+    int lowest_frequency_bin = 1;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-rlo") == 0 && i+1 < argc) {
+            lowest_frequency_bin = atoi(argv[i+1]);
+        }
+    }
+
     omp_set_num_threads(num_threads);
 
     int magnitude_array_size;
@@ -362,7 +379,8 @@ int main(int argc, char *argv[]) {
         candidates_per_boxcar, 
         observation_time_seconds, 
         sigma_threshold, 
-        output_boxcar_width);
+        output_boxcar_width,
+        lowest_frequency_bin);
 
     return 0;
 }
