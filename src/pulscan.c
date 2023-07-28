@@ -47,7 +47,7 @@ float acceleration_from_fdot(float fdot, float frequency){
     return fdot * SPEED_OF_LIGHT / frequency;
 }
 
-float frequency_from_observation_time_seconds(float observation_time_seconds, int frequency_index, int lowest_frequency_bin){
+float frequency_from_observation_time_seconds(float observation_time_seconds, int frequency_index){
     return frequency_index / observation_time_seconds;
 }
 
@@ -55,7 +55,7 @@ float period_ms_from_frequency(float frequency){
     return 1000.0 / frequency;
 }
 
-float* compute_magnitude(const char *filepath, int *magnitude_size, int rlo) {
+float* compute_magnitude(const char *filepath, int *magnitude_size, int lowest_frequency_bin) {
     printf("Reading file: %s\n", filepath);
 
     FILE *f = fopen(filepath, "rb");
