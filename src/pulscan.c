@@ -112,7 +112,7 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
         float norm_real = (data[2 * i] - real_mean) / real_stdev;
         float norm_imag = (data[2 * i + 1] - imag_mean) / imag_stdev;
         magnitude[i] = pow(norm_real, 2) + pow(norm_imag, 2);
-        printf("%f,%f,%f\n", norm_real, norm_imag, magnitude[i]);
+        //printf("%f,%f,%f\n", norm_real, norm_imag, magnitude[i]);
     }
 
     //for (int i = 1; i < 10000; i++){
@@ -130,7 +130,7 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
 }
 
 
-void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds) {
+void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold) {
     printf("Computing boxcar filter candidates for %d boxcar widths...\n", max_boxcar_width);
 
     // Extract file name without extension
@@ -234,6 +234,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
 
     for (int i = 2; i < max_boxcar_width*candidates_per_boxcar; i++){
+        if (sigma_threshold != 0.0 && all_candidates[i].sigma > sigma_threshold ){
         fprintf(text_candidates_file, "%lf,%f,%f,%f,%d,%f,%d,%f\n", 
             all_candidates[i].sigma, 
             all_candidates[i].power, 
@@ -244,6 +245,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
             all_candidates[i].boxcar_width, 
             all_candidates[i].acceleration);
         fwrite(&all_candidates[i], sizeof(Candidate), 1, binary_candidates_file);
+        }
     }
 
 
@@ -265,6 +267,7 @@ int main(int argc, char *argv[]) {
         printf("\t-zmax [int]\tThe max boxcar width (default = 1200, max = the size of your input data)\n");
         printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be = zmax * candidates\n");
         printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
+        printf("\t-sigma [float]\tThe sigma threshold (default = 0.0), candidates with sigma below this value will not be written to the output files\n"
         return 1;
     }
 
@@ -309,6 +312,15 @@ int main(int argc, char *argv[]) {
         printf("[Optional] Please specify an observation time with the -tobs flag, e.g. -tobs 600.0\n");
     }
 
+    // Get the sigma threshold value from the command line arguments
+    // If not provided, default to 0.0
+    float sigma_threshold = 0.0f;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-sigma") == 0 && i+1 < argc) {
+            sigma_threshold = atof(argv[i+1]);
+        }
+    }
+
     omp_set_num_threads(num_threads);
 
     int magnitude_array_size;
@@ -319,7 +331,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    recursive_boxcar_filter(magnitudes, magnitude_array_size, max_boxcar_width, argv[1], candidates_per_boxcar, observation_time_seconds);
+    recursive_boxcar_filter(magnitudes, magnitude_array_size, max_boxcar_width, argv[1], candidates_per_boxcar, observation_time_seconds, sigma_threshold);
 
     return 0;
 }
