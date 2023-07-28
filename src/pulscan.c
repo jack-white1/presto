@@ -119,19 +119,19 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     // compute mean and variance of real and imaginary components, ignoring DC component
     // approximate the mean as the median
 
-    //float real_sum = 0.0, imag_sum = 0.0;
-    //for(int i = 1; i < (int) n / 2; i++) {
-    //    real_sum += data[2 * i];
-    //    imag_sum += data[2 * i + 1];
-    //}
-    //float real_mean = real_sum / (((int) n-1) / 2);
-    //float imag_mean = imag_sum / (((int) n-1) / 2);
+    float real_sum = 0.0, imag_sum = 0.0;
+    for(int i = 1; i < (int) n / 2; i++) {
+        real_sum += data[2 * i];
+        imag_sum += data[2 * i + 1];
+    }
+    float real_mean = real_sum / (((int) n-1) / 2);
+    float imag_mean = imag_sum / (((int) n-1) / 2);
 
-    float real_median, imag_median;
-    compute_medians(data, n, &real_median, &imag_median);
+    //float real_median, imag_median;
+    //compute_medians(data, n, &real_median, &imag_median);
 
-    float real_mean = real_median;
-    float imag_mean = imag_median;
+    //float real_mean = real_median;
+    //float imag_mean = imag_median;
 
 
     float real_variance = 0.0, imag_variance = 0.0;
