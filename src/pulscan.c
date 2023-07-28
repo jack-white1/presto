@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
         printf("\t-zmax [int]\tThe max boxcar width (default = 1200, max = the size of your input data)\n");
         printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be = zmax * candidates\n");
         printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
-        printf("\t-sigma [float]\tThe sigma threshold (default = 0.0), candidates with sigma below this value will not be written to the output files\n"
+        printf("\t-sigma [float]\tThe sigma threshold (default = 0.0), candidates with sigma below this value will not be written to the output files\n");
         return 1;
     }
 
