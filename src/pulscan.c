@@ -353,7 +353,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    recursive_boxcar_filter(magnitudes, magnitude_array_size, max_boxcar_width, argv[1], candidates_per_boxcar, observation_time_seconds, sigma_threshold);
+    recursive_boxcar_filter(magnitudes, 
+        magnitude_array_size, 
+        max_boxcar_width, 
+        argv[1], 
+        candidates_per_boxcar, 
+        observation_time_seconds, 
+        sigma_threshold, 
+        output_boxcar_width);
 
     return 0;
 }
