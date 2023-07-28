@@ -112,6 +112,7 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
         float norm_real = (data[2 * i] - real_mean) / real_stdev;
         float norm_imag = (data[2 * i + 1] - imag_mean) / imag_stdev;
         magnitude[i] = pow(norm_real, 2) + pow(norm_imag, 2);
+        printf("%f\n", magnitude[i]);
     }
 
     fclose(f);
@@ -220,7 +221,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     }
 
     Candidate *all_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
-    for (int i = 0; i < max_boxcar_width; i++) {
+    for (int i = 2; i < max_boxcar_width; i++) {
         for (int j = 0; j < candidates_per_boxcar; j++) {
             all_candidates[i*candidates_per_boxcar + j] = top_candidates[i*candidates_per_boxcar + j];
         }
@@ -228,7 +229,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
 
     qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
 
-    for (int i = 0; i < max_boxcar_width*candidates_per_boxcar; i++){
+    for (int i = 2; i < max_boxcar_width*candidates_per_boxcar; i++){
         fprintf(text_candidates_file, "%lf,%f,%f,%f,%d,%f,%d,%f\n", 
             all_candidates[i].sigma, 
             all_candidates[i].power, 
