@@ -179,9 +179,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     memcpy(temp_sum_array, magnitudes_array, sizeof(float) * magnitudes_array_length);
 
     //Candidate top_candidates[max_boxcar_width][candidates_per_boxcar];
-    if (candidates_per_boxcar > 0){
-        Candidate* top_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
-    }
+    Candidate* top_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
 
 
     for (int boxcar_width = 2; boxcar_width < max_boxcar_width; boxcar_width++) {
