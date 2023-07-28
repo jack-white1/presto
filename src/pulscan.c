@@ -224,16 +224,18 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         }
 
         if (boxcar_width == output_boxcar_width){
-            FILE *boxcar_file = fopen("boxcar_filtered_timeseries.dat", "w");
+            FILE *boxcar_file = fopen("boxcar_filtered_timeseries.dat", "wb");
             printf("Storing boxcar filtered timeseries in boxcar_filtered_timeseries.dat\n");
             if (boxcar_file == NULL) {
                 printf("Could not open file for writing boxcar filtered timeseries.\n");
                 return;
             }
             for (int i = 0; i < valid_length; i++) {
-                fprintf(boxcar_file, "%f\n", temp_sum_array[i]);
+                fwrite(&temp_sum_array[i], sizeof(float), 1, boxcar_file);
             }
+            fclose(boxcar_file);
         }
+
     }
 
     Candidate *all_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
