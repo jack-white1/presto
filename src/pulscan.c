@@ -179,7 +179,9 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     memcpy(temp_sum_array, magnitudes_array, sizeof(float) * magnitudes_array_length);
 
     //Candidate top_candidates[max_boxcar_width][candidates_per_boxcar];
-    Candidate* top_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
+    if (candidates_per_boxcar > 0){
+        Candidate* top_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
+    }
 
 
     for (int boxcar_width = 2; boxcar_width < max_boxcar_width; boxcar_width++) {
@@ -193,41 +195,42 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         }
 
         int window_length = valid_length / candidates_per_boxcar;
-        
-        #pragma omp parallel for
-        for (int i = 0; i < candidates_per_boxcar; i++) {
-            float local_max_power = -INFINITY;
-            int window_start = i * window_length;
+        if (candidates_per_boxcar > 0){
+            #pragma omp parallel for
+            for (int i = 0; i < candidates_per_boxcar; i++) {
+                float local_max_power = -INFINITY;
+                int window_start = i * window_length;
 
-            // initialise the candidate
-            int candidate_index = boxcar_width*candidates_per_boxcar + i;
-            top_candidates[candidate_index].sigma = 0.0;
-            top_candidates[candidate_index].power = 0.0;
-            top_candidates[candidate_index].period_ms = 0.0;
-            top_candidates[candidate_index].frequency = 0.0;
-            top_candidates[candidate_index].frequency_index = 0;
-            top_candidates[candidate_index].fdot = 0.0;
-            top_candidates[candidate_index].boxcar_width = 0;
-            top_candidates[candidate_index].acceleration = 0.0;
+                // initialise the candidate
+                int candidate_index = boxcar_width*candidates_per_boxcar + i;
+                top_candidates[candidate_index].sigma = 0.0;
+                top_candidates[candidate_index].power = 0.0;
+                top_candidates[candidate_index].period_ms = 0.0;
+                top_candidates[candidate_index].frequency = 0.0;
+                top_candidates[candidate_index].frequency_index = 0;
+                top_candidates[candidate_index].fdot = 0.0;
+                top_candidates[candidate_index].boxcar_width = 0;
+                top_candidates[candidate_index].acceleration = 0.0;
 
 
-            for (int j = window_start; j < window_start + window_length; j++){
-                if (temp_sum_array[j] > local_max_power) {
-                    local_max_power = temp_sum_array[j];
-                    top_candidates[candidate_index].frequency_index = j+window_start;
-                    top_candidates[candidate_index].power = local_max_power;
-                    top_candidates[candidate_index].boxcar_width = boxcar_width;
-                    if (observation_time_seconds > 0) {
-                        top_candidates[candidate_index].frequency = frequency_from_observation_time_seconds(observation_time_seconds,top_candidates[candidate_index].frequency_index);
-                        top_candidates[candidate_index].period_ms = period_ms_from_frequency(top_candidates[candidate_index].frequency);
-                        top_candidates[candidate_index].fdot = fdot_from_boxcar_width(top_candidates[candidate_index].boxcar_width, observation_time_seconds);
-                        top_candidates[candidate_index].acceleration = acceleration_from_fdot(top_candidates[candidate_index].fdot, top_candidates[candidate_index].frequency);
+                for (int j = window_start; j < window_start + window_length; j++){
+                    if (temp_sum_array[j] > local_max_power) {
+                        local_max_power = temp_sum_array[j];
+                        top_candidates[candidate_index].frequency_index = j+window_start;
+                        top_candidates[candidate_index].power = local_max_power;
+                        top_candidates[candidate_index].boxcar_width = boxcar_width;
+                        if (observation_time_seconds > 0) {
+                            top_candidates[candidate_index].frequency = frequency_from_observation_time_seconds(observation_time_seconds,top_candidates[candidate_index].frequency_index);
+                            top_candidates[candidate_index].period_ms = period_ms_from_frequency(top_candidates[candidate_index].frequency);
+                            top_candidates[candidate_index].fdot = fdot_from_boxcar_width(top_candidates[candidate_index].boxcar_width, observation_time_seconds);
+                            top_candidates[candidate_index].acceleration = acceleration_from_fdot(top_candidates[candidate_index].fdot, top_candidates[candidate_index].frequency);
+                        }
                     }
                 }
+                top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, 
+                                                                        top_candidates[candidate_index].boxcar_width, 
+                                                                        max_boxcar_width);
             }
-            top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, 
-                                                                    top_candidates[candidate_index].boxcar_width, 
-                                                                    max_boxcar_width);
         }
 
         if (boxcar_width == output_boxcar_width){
@@ -245,27 +248,29 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
 
     }
 
-    Candidate *all_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
-    for (int i = 2; i < max_boxcar_width; i++) {
-        for (int j = 0; j < candidates_per_boxcar; j++) {
-            all_candidates[i*candidates_per_boxcar + j] = top_candidates[i*candidates_per_boxcar + j];
+    if (candidates_per_boxcar > 0){
+        Candidate *all_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
+        for (int i = 2; i < max_boxcar_width; i++) {
+            for (int j = 0; j < candidates_per_boxcar; j++) {
+                all_candidates[i*candidates_per_boxcar + j] = top_candidates[i*candidates_per_boxcar + j];
+            }
         }
-    }
 
-    qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
+        qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
 
-    for (int i = 2; i < max_boxcar_width*candidates_per_boxcar; i++){
-        if (all_candidates[i].sigma > sigma_threshold ){
-        fprintf(text_candidates_file, "%lf,%f,%f,%f,%d,%f,%d,%f\n", 
-            all_candidates[i].sigma, 
-            all_candidates[i].power, 
-            all_candidates[i].period_ms, 
-            all_candidates[i].frequency, 
-            all_candidates[i].frequency_index, 
-            all_candidates[i].fdot, 
-            all_candidates[i].boxcar_width, 
-            all_candidates[i].acceleration);
-        fwrite(&all_candidates[i], sizeof(Candidate), 1, binary_candidates_file);
+        for (int i = 2; i < max_boxcar_width*candidates_per_boxcar; i++){
+            if (all_candidates[i].sigma > sigma_threshold ){
+            fprintf(text_candidates_file, "%lf,%f,%f,%f,%d,%f,%d,%f\n", 
+                all_candidates[i].sigma, 
+                all_candidates[i].power, 
+                all_candidates[i].period_ms, 
+                all_candidates[i].frequency, 
+                all_candidates[i].frequency_index, 
+                all_candidates[i].fdot, 
+                all_candidates[i].boxcar_width, 
+                all_candidates[i].acceleration);
+            fwrite(&all_candidates[i], sizeof(Candidate), 1, binary_candidates_file);
+            }
         }
     }
 
