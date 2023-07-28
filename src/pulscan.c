@@ -112,11 +112,12 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
         float norm_real = (data[2 * i] - real_mean) / real_stdev;
         float norm_imag = (data[2 * i + 1] - imag_mean) / imag_stdev;
         magnitude[i] = pow(norm_real, 2) + pow(norm_imag, 2);
+        printf("%f,%f,%f\n", norm_real, norm_imag, magnitude[i]);
     }
 
-    for (int i = 1; i < 10000; i++){
-        printf("%f,%f,%f\n", data[2 * i], data[2 * i + 1], magnitude[i]);
-    }
+    //for (int i = 1; i < 10000; i++){
+    //    printf("%f,%f,%f\n", data[2 * i], data[2 * i + 1], magnitude[i]);
+    //}
 
     fclose(f);
     free(data);
