@@ -127,8 +127,8 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     float real_mean = real_sum / (((int) n-1) / 2);
     float imag_mean = imag_sum / (((int) n-1) / 2);
 
-    //float real_median, imag_median;
-    //compute_medians(data, n, &real_median, &imag_median);
+    float real_median, imag_median;
+    compute_medians(data, n, &real_median, &imag_median);
 
     //float real_mean = real_median;
     //float imag_mean = imag_median;
