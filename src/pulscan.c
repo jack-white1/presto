@@ -172,6 +172,16 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     // pass the size of the magnitude array back through the output parameter
     *magnitude_size = (int) n / 2;
 
+    / Write the magnitude array to a file
+    FILE *out_f = fopen("magnitude.dat", "wb");
+    if (out_f == NULL) {
+        perror("Error opening output file");
+        free(magnitude);
+        return NULL;
+    }
+    fwrite(magnitude, sizeof(float), *magnitude_size, out_f);
+    fclose(out_f);
+
     // return the pointer to the magnitude array
     return magnitude;
 }
