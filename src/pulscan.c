@@ -181,6 +181,26 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     fwrite(magnitude, sizeof(float), *magnitude_size, out_f);
     fclose(out_f);
 
+    // Write the real and imaginary arrays to files
+    FILE *real_f = fopen("real.dat", "wb");
+    if (real_f == NULL) {
+        perror("Error opening output file");
+        free(magnitude);
+        return NULL;
+    }
+    fwrite(real_data, sizeof(float), size, real_f);
+    fclose(real_f);
+
+    FILE *imag_f = fopen("imag.dat", "wb");
+    if (imag_f == NULL) {
+        perror("Error opening output file");
+        free(magnitude);
+        return NULL;
+    }
+    fwrite(imag_data, sizeof(float), size, imag_f);
+    fclose(imag_f);
+    
+
     // return the pointer to the magnitude array
     return magnitude;
 }
