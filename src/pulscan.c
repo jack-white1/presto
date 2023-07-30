@@ -67,30 +67,43 @@ int compare(const void * a, const void * b){
     return 0;
 }
 
-void compute_medians(float* data, size_t n, float* real_median, float* imag_median) {
-    size_t size = n / 2;
-    float* real_data = (float*) malloc(sizeof(float) * size);
-    float* imag_data = (float*) malloc(sizeof(float) * size);
+float compute_median(float* data, size_t n) {
+    qsort(data, n, sizeof(float), compare);
 
-    for(size_t i = 0; i < size; i++) {
-        real_data[i] = data[2 * i];
-        imag_data[i] = data[2 * i + 1];
-    }
-
-    qsort(real_data, size, sizeof(float), compare);
-    qsort(imag_data, size, sizeof(float), compare);
-
-    if(size % 2 == 0) {
-        *real_median = (real_data[size / 2 - 1] + real_data[size / 2]) / 2.0;
-        *imag_median = (imag_data[size / 2 - 1] + imag_data[size / 2]) / 2.0;
+    float median;
+    if(n % 2 == 0) {
+        median = (data[n / 2 - 1] + data[n / 2]) / 2.0;
     }
     else {
-        *real_median = real_data[size / 2];
-        *imag_median = imag_data[size / 2];
+        median = data[n / 2];
+    }
+    return median;
+}
+
+float compute_mad(float* data, size_t n, float median) {
+    float* deviations = (float*) malloc(sizeof(float) * n);
+    if(deviations == NULL) {
+        printf("Memory allocation failed\n");
+        return -1;
     }
 
-    free(real_data);
-    free(imag_data);
+    for(size_t i = 0; i < n; i++) {
+        deviations[i] = fabs(data[i] - median);
+    }
+
+    qsort(deviations, n, sizeof(float), compare);
+
+    float mad;
+    if(n % 2 == 0) {
+        mad = (deviations[n / 2 - 1] + deviations[n / 2]) / 2.0;
+    }
+    else {
+        mad = deviations[n / 2];
+    }
+
+    free(deviations);
+
+    return mad;
 }
 
 
@@ -116,34 +129,22 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
         return NULL;
     }
 
-    // compute mean and variance of real and imaginary components, ignoring DC component
-    // approximate the mean as the median
+    size_t size = n / 2;
+    float* real_data = (float*) malloc(sizeof(float) * size);
+    float* imag_data = (float*) malloc(sizeof(float) * size);
 
-    float real_sum = 0.0, imag_sum = 0.0;
-    for(int i = 1; i < (int) n / 2; i++) {
-        real_sum += data[2 * i];
-        imag_sum += data[2 * i + 1];
+    for(size_t i = 0; i < size; i++) {
+        real_data[i] = data[2 * i];
+        imag_data[i] = data[2 * i + 1];
     }
-    float real_mean = real_sum / (((int) n-1) / 2);
-    float imag_mean = imag_sum / (((int) n-1) / 2);
 
-    float real_median, imag_median;
-    compute_medians(data, n, &real_median, &imag_median);
+    float real_median = compute_median(real_data, size);
+    float imag_median = compute_median(imag_data, size);
 
-    //float real_mean = real_median;
-    //float imag_mean = imag_median;
+    float real_mad = compute_mad(real_data, size, real_median);
+    float imag_mad = compute_mad(imag_data, size, imag_median);
 
 
-    float real_variance = 0.0, imag_variance = 0.0;
-    for(int i = 1; i < (int) n / 2; i++) {
-        real_variance += pow((data[2 * i] - real_mean), 2);
-        imag_variance += pow((data[2 * i + 1] - imag_mean), 2);
-    }
-    real_variance /= (((int) n-1) / 2);
-    imag_variance /= (((int) n-1) / 2);    
-
-    float real_stdev = sqrt(real_variance);
-    float imag_stdev = sqrt(imag_variance);
 
     float* magnitude = (float*) malloc(sizeof(float) * (int) n / 2);
     if(magnitude == NULL) {
@@ -152,19 +153,15 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
         return NULL;
     }
 
-    // set DC component of magnitude spectrum to 0
-    magnitude[0] = 0.0f;
+    float norm_real;
+    float norm_imag;
 
-    for (int i = 1; i < (int) n / 2; i++) {
-        float norm_real = (data[2 * i] - real_mean) / real_stdev;
-        float norm_imag = (data[2 * i + 1] - imag_mean) / imag_stdev;
+    for (int i = 0; i < (int) n / 2; i++) {
+        norm_real = (real_data[i] - real_median) / real_mad;
+        norm_imag = (imag_data[i] - imag_median) / imag_mad;
         magnitude[i] = pow(norm_real, 2) + pow(norm_imag, 2);
-        //printf("%f,%f,%f\n", norm_real, norm_imag, magnitude[i]);
     }
 
-    //for (int i = 1; i < 10000; i++){
-    //    printf("%f,%f,%f\n", data[2 * i], data[2 * i + 1], magnitude[i]);
-    //}
 
     fclose(f);
     free(data);
