@@ -68,6 +68,7 @@ int compare(const void * a, const void * b){
 }
 
 float compute_median(float* data, size_t n) {
+    printf("Computing median\n");
     qsort(data, n, sizeof(float), compare);
 
     float median;
@@ -81,6 +82,7 @@ float compute_median(float* data, size_t n) {
 }
 
 float compute_mad(float* data, size_t n, float median) {
+    printf("Computing MAD\n");
     float* deviations = (float*) malloc(sizeof(float) * n);
     if(deviations == NULL) {
         printf("Memory allocation failed\n");
