@@ -146,6 +146,11 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     float real_mad = compute_mad(real_data, size, real_median);
     float imag_mad = compute_mad(imag_data, size, imag_median);
 
+    printf("Real median: %f\n", real_median);
+    printf("Imag median: %f\n", imag_median);
+    printf("Real MAD: %f\n", real_mad);
+    printf("Imag MAD: %f\n", imag_mad);
+
 
 
     float* magnitude = (float*) malloc(sizeof(float) * (int) n / 2);
@@ -161,7 +166,7 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     for (int i = 0; i < (int) n / 2; i++) {
         norm_real = (real_data[i] - real_median) / real_mad;
         norm_imag = (imag_data[i] - imag_median) / imag_mad;
-        magnitude[i] = pow(norm_real, 2) + pow(norm_imag, 2);
+        magnitude[i] = norm_real*norm_real + norm_imag*norm_imag;
     }
 
 
@@ -199,7 +204,7 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     }
     fwrite(imag_data, sizeof(float), size, imag_f);
     fclose(imag_f);
-    
+
 
     // return the pointer to the magnitude array
     return magnitude;
