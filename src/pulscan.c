@@ -55,8 +55,6 @@ float period_ms_from_frequency(float frequency){
     return 1000.0 / frequency;
 }
 
-#include <stdlib.h>
-
 // Function to compare two floats for qsort
 int compare(const void * a, const void * b){
     float arg1 = *(const float*)a;
@@ -140,16 +138,16 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
         imag_data[i] = data[2 * i + 1];
     }
 
-    float real_median = compute_median(real_data, size);
-    float imag_median = compute_median(imag_data, size);
+    //float real_median = compute_median(real_data, size);
+    //float imag_median = compute_median(imag_data, size);
 
-    float real_mad = compute_mad(real_data, size, real_median);
-    float imag_mad = compute_mad(imag_data, size, imag_median);
+    //float real_mad = compute_mad(real_data, size, real_median);
+    //float imag_mad = compute_mad(imag_data, size, imag_median);
 
-    printf("Real median: %f\n", real_median);
-    printf("Imag median: %f\n", imag_median);
-    printf("Real MAD: %f\n", real_mad);
-    printf("Imag MAD: %f\n", imag_mad);
+    //printf("Real median: %f\n", real_median);
+    //printf("Imag median: %f\n", imag_median);
+    //printf("Real MAD: %f\n", real_mad);
+    //printf("Imag MAD: %f\n", imag_mad);
 
 
 
@@ -160,13 +158,14 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
         return NULL;
     }
 
-    float norm_real;
-    float norm_imag;
+    //float norm_real;
+    //float norm_imag;
 
     for (int i = 0; i < (int) n / 2; i++) {
-        norm_real = (real_data[i] - real_median) / real_mad;
-        norm_imag = (imag_data[i] - imag_median) / imag_mad;
-        magnitude[i] = norm_real*norm_real + norm_imag*norm_imag;
+        //norm_real = (real_data[i] - real_median) / real_mad;
+        //norm_imag = (imag_data[i] - imag_median) / imag_mad;
+        //magnitude[i] = norm_real*norm_real + norm_imag*norm_imag;
+        magnitude[i] = real_data[i]*real_data[i] + imag_data[i]*imag_data[i];
     }
 
 
@@ -187,23 +186,23 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     fclose(out_f);
 
     // Write the real and imaginary arrays to files
-    FILE *real_f = fopen("real.dat", "wb");
-    if (real_f == NULL) {
-        perror("Error opening output file");
-        free(magnitude);
-        return NULL;
-    }
-    fwrite(real_data, sizeof(float), size, real_f);
-    fclose(real_f);
+    //FILE *real_f = fopen("real.dat", "wb");
+    //if (real_f == NULL) {
+    //    perror("Error opening output file");
+    //    free(magnitude);
+    //    return NULL;
+    //}
+    //fwrite(real_data, sizeof(float), size, real_f);
+    //fclose(real_f);
 
-    FILE *imag_f = fopen("imag.dat", "wb");
-    if (imag_f == NULL) {
-        perror("Error opening output file");
-        free(magnitude);
-        return NULL;
-    }
-    fwrite(imag_data, sizeof(float), size, imag_f);
-    fclose(imag_f);
+    //FILE *imag_f = fopen("imag.dat", "wb");
+    //if (imag_f == NULL) {
+    //    perror("Error opening output file");
+    //    free(magnitude);
+    //    return NULL;
+    //}
+    //fwrite(imag_data, sizeof(float), size, imag_f);
+    //fclose(imag_f);
 
 
     // return the pointer to the magnitude array
