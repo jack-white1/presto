@@ -288,6 +288,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         offset += 1;
 
         for (int j = (boxcar_width-1)*DIFFERENCE_MULTIPLIER; j < boxcar_width * DIFFERENCE_MULTIPLIER; j++){
+            printf("Calculating wide boxcar width: %d\n", j);
             wide_valid_length -= 1;
             wide_offset += 1;
             wide_multiplier = 1/(float)boxcar_width;
