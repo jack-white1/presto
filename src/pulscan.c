@@ -282,6 +282,17 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     valid_length = magnitudes_array_length;
     offset = 0;
 
+    FILE *unfiltered_file = fopen("unfiltered_timeseries.dat", "wb");
+    printf("Storing unfiltered timeseries in boxcar_filtered_timeseries.dat\n");
+    if (unfiltered_file == NULL) {
+        printf("Could not open file for writing unfiltered timeseries.\n");
+        return;
+    }
+    for (int i = 0; i < valid_length; i++) {
+        fwrite(&magnitudes_array[i], sizeof(float), 1, unfiltered_file);
+    }
+    fclose(unfiltered_file);
+
     for (int boxcar_width = 2; boxcar_width < max_boxcar_width; boxcar_width++) {
         printf("Boxcar width: %d\n", boxcar_width);
         valid_length -= 1;
