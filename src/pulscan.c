@@ -255,12 +255,13 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     float* narrow_sum_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
     float* narrow_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
     memcpy(narrow_sum_array, magnitudes_array, sizeof(float) * magnitudes_array_length);
+    float narrow_multiplier;
 
     // prepare wide array
     float* wide_sum_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
     float* wide_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
     memcpy(wide_sum_array, magnitudes_array, sizeof(float) * magnitudes_array_length);
-    float multiplier;
+    float wide_multiplier;
 
     // prepare difference array
     float* difference_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
@@ -268,7 +269,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     for (int boxcar_width = 2; boxcar_width < DIFFERENCE_MULTIPLIER; boxcar_width++) {
         wide_valid_length -= 1;
         wide_offset += 1;
-        multiplier = 1/(float)boxcar_width;
+        wide_multiplier = 1/(float)boxcar_width;
         for (int i = 0; i < valid_length; i++) {
             wide_sum_array[i] += magnitudes_array[i + offset];
             wide_array[i] = wide_sum_array[i] * multiplier;
@@ -292,10 +293,10 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
             #pragma omp parallel for
             for (int i = 0; i < wide_valid_length; i++) {
                 wide_sum_array[i] += magnitudes_array[i + wide_offset];
-                wide_array[i] = wide_sum_array[i] * multiplier;
+                wide_array[i] = wide_sum_array[i] * wide_multiplier;
             }
         }
-
+        narrow_multiplier = 1/(float)boxcar_width;
         #pragma omp parallel for
         for (int i = 0; i < valid_length; i++) {
             narrow_sum_array[i] += magnitudes_array[i + offset];
