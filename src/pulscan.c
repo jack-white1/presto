@@ -290,6 +290,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         for (int j = (boxcar_width-1)*DIFFERENCE_MULTIPLIER; j < boxcar_width * DIFFERENCE_MULTIPLIER; j++){
             wide_valid_length -= 1;
             wide_offset += 1;
+            wide_multiplier = 1/(float)boxcar_width;
             #pragma omp parallel for
             for (int i = 0; i < wide_valid_length; i++) {
                 wide_sum_array[i] += magnitudes_array[i + wide_offset];
