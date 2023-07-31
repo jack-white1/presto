@@ -300,7 +300,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         #pragma omp parallel for
         for (int i = 0; i < valid_length; i++) {
             narrow_sum_array[i] += magnitudes_array[i + offset];
-            narrow_array[i] = narrow_sum_array[i] * multiplier;
+            narrow_array[i] = narrow_sum_array[i] * narrow_multiplier;
             difference_array[i] = narrow_array[i] - wide_array[i];
         }
 
