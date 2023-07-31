@@ -272,7 +272,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         wide_multiplier = 1/(float)boxcar_width;
         for (int i = 0; i < valid_length; i++) {
             wide_sum_array[i] += magnitudes_array[i + offset];
-            wide_array[i] = wide_sum_array[i] * multiplier;
+            wide_array[i] = wide_sum_array[i] * wide_multiplier;
         }
     }
 
