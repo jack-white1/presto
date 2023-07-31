@@ -350,7 +350,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                 return;
             }
             for (int i = 0; i < valid_length; i++) {
-                fwrite(&narrow_sum_array[i], sizeof(float), 1, boxcar_file);
+                fwrite(&difference_array[i], sizeof(float), 1, boxcar_file);
             }
             fclose(boxcar_file);
         }
