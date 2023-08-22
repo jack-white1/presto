@@ -218,7 +218,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     //fclose(unfiltered_file);
 
     for (int boxcar_width = 2; boxcar_width < max_boxcar_width; boxcar_width++) {
-        printf("Boxcar width: %d\n", boxcar_width);
+        //printf("Boxcar width: %d\n", boxcar_width);
         valid_length -= 1;
         offset += 1;
 
