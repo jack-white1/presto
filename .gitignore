@@ -64,3 +64,4 @@ MANIFEST
 dist/
 .mypy_cache/
 .vscode/
+src/unfiltered_timeseries.dat

@@ -86,15 +86,43 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
         imag_data[i] = data[2 * i + 1];
     }
 
-    float* magnitude = (float*) malloc(sizeof(float) * (int) n / 2);
+    // compute mean and variance of real and imaginary components, ignoring DC component
+
+    float real_sum = 0.0, imag_sum = 0.0;
+    for(int i = 1; i < (int)n / 2; i++) {
+        real_sum += data[2 * i];
+        imag_sum += data[2 * i + 1];
+    }
+    float real_mean = real_sum / ((n-1) / 2);
+    float imag_mean = imag_sum / ((n-1) / 2);
+
+    float real_variance = 0.0, imag_variance = 0.0;
+    for(int i = 1; i < (int)n / 2; i++) {
+        real_variance += (data[2 * i] - real_mean)*(data[2 * i] - real_mean);
+        imag_variance += (data[2 * i + 1] - imag_mean)*(data[2 * i + 1] - imag_mean);
+    }
+    real_variance /= ((n-1) / 2);
+    imag_variance /= ((n-1) / 2);
+
+    float real_stdev = sqrt(real_variance);
+    float imag_stdev = sqrt(imag_variance);
+
+    float* magnitude = (float*) malloc(sizeof(float) * n / 2);
     if(magnitude == NULL) {
         printf("Memory allocation failed\n");
         free(data);
         return NULL;
     }
 
-    for (int i = 0; i < (int) n / 2; i++) {
-        magnitude[i] = real_data[i]*real_data[i] + imag_data[i]*imag_data[i];
+    // set DC component of magnitude spectrum to 0
+    magnitude[0] = 0.0f;
+
+    float norm_real, norm_imag;
+
+    for (int i = 1; i < (int) n / 2; i++) {
+        norm_real = (data[2 * i] - real_mean) / real_stdev;
+        norm_imag = (data[2 * i + 1] - imag_mean) / imag_stdev;
+        magnitude[i] = norm_real*norm_real + norm_imag*norm_imag;
     }
 
     fclose(f);
