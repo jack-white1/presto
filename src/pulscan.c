@@ -194,23 +194,31 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         valid_length -= 1;
         offset += 1;
 
-        for (int j = (boxcar_width-1)*DIFFERENCE_MULTIPLIER; j < boxcar_width * DIFFERENCE_MULTIPLIER; j++){
-            printf("Calculating wide boxcar width: %d\n", j);
-            wide_valid_length -= 1;
-            wide_offset += 1;
-            wide_multiplier = 1/(float)boxcar_width;
-            #pragma omp parallel for
-            for (int i = 0; i < wide_valid_length; i++) {
-                wide_sum_array[i] += magnitudes_array[i + wide_offset];
-                wide_array[i] = wide_sum_array[i] * wide_multiplier;
-            }
-        }
+        //disabling difference of boxcars, revert to simple boxcar
+
+        //for (int j = (boxcar_width-1)*DIFFERENCE_MULTIPLIER; j < boxcar_width * DIFFERENCE_MULTIPLIER; j++){
+        //    printf("Calculating wide boxcar width: %d\n", j);
+        //    wide_valid_length -= 1;
+        //    wide_offset += 1;
+        //    wide_multiplier = 1/(float)boxcar_width;
+        //    #pragma omp parallel for
+        //    for (int i = 0; i < wide_valid_length; i++) {
+        //        wide_sum_array[i] += magnitudes_array[i + wide_offset];
+        //        wide_array[i] = wide_sum_array[i] * wide_multiplier;
+        //    }
+        //}
+
         narrow_multiplier = 1/(float)boxcar_width;
         #pragma omp parallel for
         for (int i = 0; i < valid_length; i++) {
             narrow_sum_array[i] += magnitudes_array[i + offset];
-            narrow_array[i] = narrow_sum_array[i] * narrow_multiplier;
-            difference_array[i] = narrow_array[i] - wide_array[i];
+
+            //disabling difference of boxcars, revert to simple boxcar
+            //narrow_array[i] = narrow_sum_array[i] * narrow_multiplier;
+            //difference_array[i] = narrow_array[i] - wide_array[i];
+
+            //simple boxcar
+            difference_array[i] = narrow_sum_array[i];
         }
 
         int window_length = valid_length / candidates_per_boxcar;
@@ -292,6 +300,11 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     fclose(text_candidates_file);
     fclose(binary_candidates_file);
     free(base_name);
+    free(top_candidates);
+    free(difference_array);
+    free(wide_sum_array);
+    free(wide_array);
+    free(narrow_array);
 }
 
 
