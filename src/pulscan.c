@@ -167,38 +167,15 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     }
     
     // we want to ignore the DC component, so we start at index 1, by adding 1 to the pointer
-    magnitudes_array += 1;
-    magnitudes_array_length -= 1;
+    magnitudes_array++;
+    magnitudes_array_length--;
 
     int valid_length = magnitudes_array_length;
     int offset = 0;
 
-    int wide_valid_length = magnitudes_array_length;
-    int wide_offset = 0;
+    // prepare output array
+    float* output_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
 
-    float* narrow_sum_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
-    float* narrow_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
-    memcpy(narrow_sum_array, magnitudes_array, sizeof(float) * magnitudes_array_length);
-    float narrow_multiplier;
-
-    // prepare wide array
-    float* wide_sum_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
-    float* wide_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
-    memcpy(wide_sum_array, magnitudes_array, sizeof(float) * magnitudes_array_length);
-    float wide_multiplier;
-
-    // prepare difference array
-    float* difference_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
-    
-    for (int boxcar_width = 2; boxcar_width < DIFFERENCE_MULTIPLIER; boxcar_width++) {
-        wide_valid_length -= 1;
-        wide_offset += 1;
-        wide_multiplier = 1/(float)boxcar_width;
-        for (int i = 0; i < valid_length; i++) {
-            wide_sum_array[i] += magnitudes_array[i + offset];
-            wide_array[i] = wide_sum_array[i] * wide_multiplier;
-        }
-    }
 
     //Candidate top_candidates[max_boxcar_width][candidates_per_boxcar];
     Candidate* top_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
@@ -206,47 +183,14 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     valid_length = magnitudes_array_length;
     offset = 0;
 
-    //FILE *unfiltered_file = fopen("unfiltered_timeseries.dat", "wb");
-    //printf("Storing unfiltered timeseries in unfiltered_timeseries.dat\n");
-    //if (unfiltered_file == NULL) {
-    //    printf("Could not open file for writing unfiltered timeseries.\n");
-    //    return;
-    //}
-    //for (int i = 0; i < valid_length; i++) {
-    //    fwrite(&magnitudes_array[i], sizeof(float), 1, unfiltered_file);
-    //}
-    //fclose(unfiltered_file);
-
     for (int boxcar_width = 2; boxcar_width < max_boxcar_width; boxcar_width++) {
-        //printf("Boxcar width: %d\n", boxcar_width);
+
         valid_length -= 1;
         offset += 1;
 
-        //disabling difference of boxcars, revert to simple boxcar
-
-        //for (int j = (boxcar_width-1)*DIFFERENCE_MULTIPLIER; j < boxcar_width * DIFFERENCE_MULTIPLIER; j++){
-        //    printf("Calculating wide boxcar width: %d\n", j);
-        //    wide_valid_length -= 1;
-        //    wide_offset += 1;
-        //    wide_multiplier = 1/(float)boxcar_width;
-        //    #pragma omp parallel for
-        //    for (int i = 0; i < wide_valid_length; i++) {
-        //        wide_sum_array[i] += magnitudes_array[i + wide_offset];
-        //        wide_array[i] = wide_sum_array[i] * wide_multiplier;
-        //    }
-        //}
-
-        narrow_multiplier = 1/(float)boxcar_width;
         #pragma omp parallel for
         for (int i = 0; i < valid_length; i++) {
-            narrow_sum_array[i] += magnitudes_array[i + offset];
-
-            //disabling difference of boxcars, revert to simple boxcar
-            //narrow_array[i] = narrow_sum_array[i] * narrow_multiplier;
-            //difference_array[i] = narrow_array[i] - wide_array[i];
-
-            //simple boxcar
-            difference_array[i] = narrow_sum_array[i];
+            output_array[i] += magnitudes_array[i + offset];
         }
 
         int window_length = valid_length / candidates_per_boxcar;
@@ -268,8 +212,8 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                 top_candidates[candidate_index].acceleration = 0.0;
 
                 for (int j = window_start; j < window_start + window_length; j++){
-                    if (difference_array[j] > local_max_power) {
-                        local_max_power = difference_array[j];
+                    if (output_array[j] > local_max_power) {
+                        local_max_power = output_array[j];
                         top_candidates[candidate_index].frequency_index = j+window_start;
                         top_candidates[candidate_index].power = local_max_power;
                         top_candidates[candidate_index].boxcar_width = boxcar_width;
@@ -293,7 +237,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                 return;
             }
             for (int i = 0; i < valid_length; i++) {
-                fwrite(&difference_array[i], sizeof(float), 1, boxcar_file);
+                fwrite(&output_array[i], sizeof(float), 1, boxcar_file);
             }
             fclose(boxcar_file);
         }
@@ -324,15 +268,11 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
             }
         }
     }
-    free(narrow_sum_array);
     fclose(text_candidates_file);
     fclose(binary_candidates_file);
     free(base_name);
     free(top_candidates);
-    free(difference_array);
-    free(wide_sum_array);
-    free(wide_array);
-    free(narrow_array);
+    free(output_array);
 }
 
 
