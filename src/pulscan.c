@@ -199,7 +199,6 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
             for (int i = 0; i < candidates_per_boxcar; i++) {
                 float local_max_power = -INFINITY;
                 int window_start = i * window_length;
-                printf("boxcar_width: %d, window_index:%d, window_start: %d, window_length: %d\n", boxcar_width, i, window_start, window_length);
 
                 // initialise the candidate
                 int candidate_index = boxcar_width*candidates_per_boxcar + i;
@@ -227,9 +226,6 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                     }
                 }
                 top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width);
-                if (top_candidates[candidate_index].sigma > 56){
-                    printf("boxcar_width: %d, window_index:%d, window_start: %d, window_length: %d, frequency_index: %d, power: %f, sigma: %f\n", boxcar_width, i, window_start, window_length, top_candidates[candidate_index].frequency_index, top_candidates[candidate_index].power, top_candidates[candidate_index].sigma);
-                }
             }
         }
 
