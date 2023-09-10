@@ -171,6 +171,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     magnitudes_array_length--;
 
     int valid_length = magnitudes_array_length;
+    int initial_length = magnitudes_array_length;
     int offset = 0;
 
     // prepare output array
@@ -225,7 +226,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                         }
                     }
                 }
-                top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width);
+                top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width*initial_length);
             }
         }
 
@@ -273,13 +274,6 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     free(base_name);
     free(top_candidates);
     free(output_array);
-}
-
-void test_candidate_sigma(){
-    double power = 4000;
-    int boxcar_width = 350;
-    double max_boxcar_width = 1200.0 * 2300000;
-    printf("sigma for power %lf, boxcar_width %d, max_boxcar_width %lf = %lf\n", power, boxcar_width, max_boxcar_width, candidate_sigma(power, boxcar_width, max_boxcar_width));
 }
 
 int main(int argc, char *argv[]) {
