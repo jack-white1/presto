@@ -199,6 +199,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
             for (int i = 0; i < candidates_per_boxcar; i++) {
                 float local_max_power = -INFINITY;
                 int window_start = i * window_length;
+                printf("boxcar_width: %d, window_index:%d, window_start: %d, window_length: %d\n", boxcar_width, i, window_start, window_length);
 
                 // initialise the candidate
                 int candidate_index = boxcar_width*candidates_per_boxcar + i;
@@ -251,7 +252,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
             }
         }
 
-        //qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
+        qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
 
         for (int i = 2; i < max_boxcar_width*candidates_per_boxcar; i++){
             if (all_candidates[i].sigma > sigma_threshold ){
