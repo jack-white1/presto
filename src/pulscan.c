@@ -379,5 +379,7 @@ int main(int argc, char *argv[]) {
         sigma_threshold, 
         output_boxcar_width);
 
+    test_candidate_sigma();
+
     return 0;
 }
