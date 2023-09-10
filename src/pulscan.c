@@ -278,7 +278,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
 
 void profile_candidate_sigma(){
     printf("sigma,power,boxcar_width,independent_trials\n");
-    double independent_trials = 1200 * 2500000;
+    double independent_trials = 2500000000.0;
     for (double power = 1; power < 10000; power = power + 10){
         for (int boxcar_width = 1; boxcar_width < 1200; boxcar_width++){
             double sigma = candidate_sigma(power*0.5, boxcar_width, independent_trials);
