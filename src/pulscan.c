@@ -276,6 +276,17 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     free(output_array);
 }
 
+void profile_candidate_sigma(){
+    printf("sigma,power,boxcar_width,independent_trials\n");
+    double independent_trials = 1200 * 2500000;
+    for (double power = 1; power < 10000; power = power + 10){
+        for (int boxcar_width = 1; boxcar_width < 1200; boxcar_width++){
+            double sigma = candidate_sigma(power*0.5, boxcar_width, independent_trials);
+            printf("%lf,%lf,%d,%lf\n", sigma, power, boxcar_width, independent_trials);
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("USAGE: %s file [-ncpus int] [-zmax int] [-candidates int] [-tobs float]\n", argv[0]);
@@ -369,6 +380,8 @@ int main(int argc, char *argv[]) {
         observation_time_seconds, 
         sigma_threshold, 
         output_boxcar_width);
+
+    profile_candidate_sigma();
 
     return 0;
 }
