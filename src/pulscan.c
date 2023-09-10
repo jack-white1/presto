@@ -215,7 +215,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                 for (int j = window_start; j < window_start + window_length; j++){
                     if (output_array[j] > local_max_power) {
                         local_max_power = output_array[j];
-                        top_candidates[candidate_index].frequency_index = j+window_start;
+                        top_candidates[candidate_index].frequency_index = j;
                         top_candidates[candidate_index].power = local_max_power;
                         top_candidates[candidate_index].boxcar_width = boxcar_width;
                         if (observation_time_seconds > 0) {
