@@ -276,7 +276,13 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
 }
 
 void test_candidate_sigma(){
-    for ()
+    for (double i = 0; i < 100; i = i + 1){
+        for (int j = 1; j < 10; j = j + 1){
+            for (double k = 1; k < 10; k = k + 1){
+                printf("sigma for power %lf, boxcar_width %d, max_boxcar_width %lf = %lf\n", i, j, k, candidate_sigma(i, j, k));
+            }
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
