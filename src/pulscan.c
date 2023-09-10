@@ -275,6 +275,9 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     free(output_array);
 }
 
+void test_candidate_sigma(){
+    for ()
+}
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {

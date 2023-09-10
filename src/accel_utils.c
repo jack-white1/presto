@@ -611,6 +611,9 @@ void optimize_accelcand(accelcand * cand, accelobs * obs)
     }
     cand->sigma = candidate_sigma(cand->power, cand->numharm,
                                   obs->numindep[twon_to_index(cand->numharm)]);
+    printf("Calling candidate sigma with arguments:  %f  %d  %d\n",
+           cand->power, cand->numharm,
+           obs->numindep[twon_to_index(cand->numharm)]);
 }
 
 
