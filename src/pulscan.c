@@ -251,7 +251,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
             }
         }
 
-        qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
+        //qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
 
         for (int i = 2; i < max_boxcar_width*candidates_per_boxcar; i++){
             if (all_candidates[i].sigma > sigma_threshold ){
