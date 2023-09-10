@@ -278,7 +278,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
 void test_candidate_sigma(){
     double power = 4000;
     int boxcar_width = 350;
-    double max_boxcar_width = 1200.0;
+    double max_boxcar_width = 1200.0 * 2300000;
     printf("sigma for power %lf, boxcar_width %d, max_boxcar_width %lf = %lf\n", power, boxcar_width, max_boxcar_width, candidate_sigma(power, boxcar_width, max_boxcar_width));
 }
 
