@@ -18,11 +18,12 @@ void profile_candidate_sigma(double power_min, double power_max, double number_o
     double power_step = (power_max - power_min) / number_of_power_steps;
     int numsum_step = (numsum_max - numsum_min) / number_of_numsum_steps;
     double independent_trials_step = (independent_trials_max - independent_trials_min) / number_of_independent_trials_steps;
-    
     for (double power = power_min; power < power_max; power = power + power_step){
-        for (int numsum = numsum_min; numsum < numsum_max; numsum = numsum + 10){
-            double sigma = candidate_sigma(power, numsum, independent_trials);
-            fprintf(profile_file, "%lf,%lf,%d,%lf\n", sigma, power, numsum, independent_trials);
+        for (int numsum = numsum_min; numsum < numsum_max; numsum = numsum + numsum_step){
+            for (double independent_trials = independent_trials_min; independent_trials < independent_trials_max; independent_trials = independent_trials + independent_trials_step){
+                double sigma = candidate_sigma(power, numsum, independent_trials);
+                fprintf(profile_file, "%lf,%lf,%d,%lf\n", sigma, power, numsum, independent_trials);
+            }
         }
     }
 }
