@@ -280,13 +280,10 @@ void profile_candidate_sigma(){
     FILE *profile_file = fopen("profile.csv", "w");
     printf("sigma,power,boxcar_width,independent_trials\n");
     double independent_trials = 2500000000.0;
-    for (double independent_trials = 1; independent_trials < 10000000; independent_trials = independent_trials + 10000){
-        printf("%lf of %lf\n", independent_trials, (double)10000000);
-        for (double power = 1; power < 10000; power = power + 200){
-            for (int boxcar_width = 1; boxcar_width < 15000; boxcar_width = boxcar_width + 10){
-                double sigma = candidate_sigma(power, boxcar_width, independent_trials);
-                fprintf(profile_file, "%lf,%lf,%d,%lf\n", sigma, power, boxcar_width, independent_trials);
-            }
+    for (double power = 1; power < 10000; power = power + 200){
+        for (int boxcar_width = 1; boxcar_width < 15000; boxcar_width = boxcar_width + 10){
+            double sigma = candidate_sigma(power, boxcar_width, independent_trials);
+            fprintf(profile_file, "%lf,%lf,%d,%lf\n", sigma, power, boxcar_width, independent_trials);
         }
     }
 }
@@ -384,8 +381,6 @@ int main(int argc, char *argv[]) {
         observation_time_seconds, 
         sigma_threshold, 
         output_boxcar_width);
-
-    profile_candidate_sigma();
 
     return 0;
 }

@@ -339,6 +339,9 @@ fitsdelcol: fitsdelcol.o
 pulscan: pulscan.o libpresto
 	$(CC) $(CLINKFLAGS) -o $(PRESTO)/bin/$@ pulscan.o $(PRESTOLINK) -lm
 
+profile_candidate_sigma: profile_candidate_sigma.o libpresto
+	$(CC) $(CLINKFLAGS) -o $(PRESTO)/bin/$@ profile_candidate_sigma.o $(PRESTOLINK) -lm
+
 clean:
 	rm -f *.o *~ *#
 	rm -f slalib/*.o slalib/sla_test
