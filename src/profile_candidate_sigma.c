@@ -28,7 +28,8 @@ void profile_candidate_sigma(double power_min, double power_max, double number_o
     }
 }
 
-int main(int argc, char *argv[]) {
+//int main(int argc, char *argv[]) {
+int test_profile(int argc, char *argv[]) {
 
     if (argc < 2) {
         printf("USAGE: %s [-power_min double] [-power_max double] [-number_power_steps double] \n", argv[0]);
