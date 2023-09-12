@@ -553,7 +553,7 @@ double candidate_sigma(double power, int numsum, double numtrials)
 {
     //printf("candidate_sigma() being called with arguments:\n");
     //printf("   power = %f, numsum = %d, numtrials = %f\n",
-           power, numsum, numtrials);
+    //       power, numsum, numtrials);
     double logp, chi2, dof;
 
     if (power <= 0.0) {
