@@ -502,7 +502,7 @@ double chi2_logp(double chi2, double dof)
     }
 
     //if (chi2 / dof > 15.0 || (dof > 150 && chi2 / dof > 6.0)) {
-    if (chi2 / dof > 5.0 ) {
+    if (chi2 / dof > 1.0 ) {
         // printf("Using asymtotic expansion...\n");
         // Use some asymtotic expansions for the chi^2 distribution
         //   this is eqn 26.4.19 of A & S
