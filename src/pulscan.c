@@ -388,13 +388,13 @@ int main(int argc, char *argv[]) {
 
     double power_min = 1.0;
     double power_max = 10000.0;
-    double number_of_power_steps = 200.0;
+    double number_of_power_steps = 50.0;
     int numsum_min = 2;
     int numsum_max = 1200;
-    int number_of_numsum_steps = 200;
+    int number_of_numsum_steps = 50;
     double independent_trials_min = 10000.0;
     double independent_trials_max = 1000000.0;
-    double number_of_independent_trials_steps = 100;
+    double number_of_independent_trials_steps = 10;
 
     profile_candidate_sigma(power_min, power_max, number_of_power_steps, 
                                 numsum_min, numsum_max, number_of_numsum_steps, 
