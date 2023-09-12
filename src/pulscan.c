@@ -226,7 +226,8 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                         }
                     }
                 }
-                top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width*initial_length);
+                //top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width*initial_length);
+                top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width);
             }
         }
 
@@ -396,9 +397,11 @@ int main(int argc, char *argv[]) {
     double independent_trials_max = 1000000.0;
     double number_of_independent_trials_steps = 10;
 
+    /*
     profile_candidate_sigma(power_min, power_max, number_of_power_steps, 
                                 numsum_min, numsum_max, number_of_numsum_steps, 
                                 independent_trials_min, independent_trials_max, number_of_independent_trials_steps);
+    */
 
     return 0;
 }
