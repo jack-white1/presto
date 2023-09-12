@@ -276,6 +276,23 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     free(output_array);
 }
 
+void profile_candidate_sigma(double power_min, double power_max, double number_of_power_steps, 
+                                int numsum_min, int numsum_max, int number_of_numsum_steps, 
+                                double independent_trials_min, double independent_trials_max, double number_of_independent_trials_steps){
+    FILE *profile_file = fopen("profile.csv", "w");
+    double power_step = (power_max - power_min) / number_of_power_steps;
+    int numsum_step = (numsum_max - numsum_min) / number_of_numsum_steps;
+    double independent_trials_step = (independent_trials_max - independent_trials_min) / number_of_independent_trials_steps;
+    for (double power = power_min; power < power_max; power = power + power_step){
+        for (int numsum = numsum_min; numsum < numsum_max; numsum = numsum + numsum_step){
+            for (double independent_trials = independent_trials_min; independent_trials < independent_trials_max; independent_trials = independent_trials + independent_trials_step){
+                double sigma = candidate_sigma(power, numsum, independent_trials);
+                fprintf(profile_file, "%lf,%lf,%d,%lf\n", sigma, power, numsum, independent_trials);
+            }
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("USAGE: %s file [-ncpus int] [-zmax int] [-candidates int] [-tobs float]\n", argv[0]);
@@ -368,6 +385,20 @@ int main(int argc, char *argv[]) {
         observation_time_seconds, 
         sigma_threshold, 
         output_boxcar_width);
+
+    double power_min = 1.0;
+    double power_max = 10000.0;
+    double number_of_power_steps = 200.0;
+    int numsum_min = 2;
+    int numsum_max = 1200;
+    int number_of_numsum_steps = 200;
+    double independent_trials_min = 10000.0;
+    double independent_trials_max = 1000000.0;
+    double number_of_independent_trials_steps = 100;
+
+    profile_candidate_sigma(power_min, power_max, number_of_power_steps, 
+                                numsum_min, numsum_max, number_of_numsum_steps, 
+                                independent_trials_min, independent_trials_max, number_of_independent_trials_steps);
 
     return 0;
 }
