@@ -551,8 +551,8 @@ double candidate_sigma(double power, int numsum, double numtrials)
 /* sigmas of a candidate of numsum summed powers,        */
 /* taking into account the number of independent trials. */
 {
-    printf("candidate_sigma() being called with arguments:\n");
-    printf("   power = %f, numsum = %d, numtrials = %f\n",
+    //printf("candidate_sigma() being called with arguments:\n");
+    //printf("   power = %f, numsum = %d, numtrials = %f\n",
            power, numsum, numtrials);
     double logp, chi2, dof;
 

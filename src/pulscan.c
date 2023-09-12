@@ -227,9 +227,9 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                     }
                 }
                 double num_independent_trials = ((double)max_boxcar_width)*((double)initial_length)/6.95; // 6.95 from eqn 6 in Anderson & Ransom 2018
-                printf("num_independent_trials = %lf\n", num_independent_trials);
-                printf("max_boxcar_width = %d\n", max_boxcar_width);
-                printf("initial_length = %d\n", initial_length);
+                //printf("num_independent_trials = %lf\n", num_independent_trials);
+                //printf("max_boxcar_width = %d\n", max_boxcar_width);
+                //printf("initial_length = %d\n", initial_length);
                 top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, num_independent_trials); 
                 //top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width);
             }
