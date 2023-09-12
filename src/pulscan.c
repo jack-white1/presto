@@ -226,8 +226,8 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                         }
                     }
                 }
-                //top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width*initial_length);
-                top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width);
+                top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width*initial_length);
+                //top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width);
             }
         }
 
