@@ -16,9 +16,7 @@
 #include "accel.h"
 
 #define MAX_DATA_SIZE 10000000000 // assume file won't be larger than this, 10M samples, increase if required
-#define DEFAULT_CANDIDATES_PER_BOXCAR 10
 #define SPEED_OF_LIGHT 299792458.0
-#define DIFFERENCE_MULTIPLIER 9
 
 typedef struct {
     double sigma;
@@ -55,7 +53,63 @@ float period_ms_from_frequency(float frequency){
     return 1000.0 / frequency;
 }
 
-float* compute_magnitude(const char *filepath, int *magnitude_size) {
+// function to compare floats for qsort
+int compare_floats_median(const void *a, const void *b) {
+    float arg1 = *(const float*)a;
+    float arg2 = *(const float*)b;
+
+    if(arg1 < arg2) return -1;
+    if(arg1 > arg2) return 1;
+    return 0;
+}
+
+void normalize_block(float* block, size_t block_size) {
+    if (block_size == 0) return;
+
+    // Compute the median
+    float* sorted_block = (float*) malloc(sizeof(float) * block_size);
+    memcpy(sorted_block, block, sizeof(float) * block_size);
+    qsort(sorted_block, block_size, sizeof(float), compare_floats_median);
+
+    float median;
+    if (block_size % 2 == 0) {
+        median = (sorted_block[block_size/2 - 1] + sorted_block[block_size/2]) / 2.0f;
+    } else {
+        median = sorted_block[block_size/2];
+    }
+
+    // Compute the MAD
+    for (size_t i = 0; i < block_size; i++) {
+        sorted_block[i] = fabs(sorted_block[i] - median);
+    }
+    qsort(sorted_block, block_size, sizeof(float), compare_floats_median);
+
+    float mad = block_size % 2 == 0 ?
+                (sorted_block[block_size/2 - 1] + sorted_block[block_size/2]) / 2.0f :
+                sorted_block[block_size/2];
+
+    free(sorted_block);
+
+    // scale the mad by the constant scale factor k
+    float k = 1.4826f; // 1.4826 is the scale factor to convert mad to std dev for a normal distribution https://en.wikipedia.org/wiki/Median_absolute_deviation
+    mad *= k;
+
+    // Normalize the block
+    if (mad != 0) {
+        for (size_t i = 0; i < block_size; i++) {
+            block[i] = (block[i] - median) / mad;
+        }
+    }
+
+    // print statistics
+    //printf("median = %f\n", median);
+    //printf("mad = %f\n", mad);
+}
+
+float* compute_magnitude_block_normalization_mad(const char *filepath, int *magnitude_size) {
+    size_t block_size = 131072; // needs to be much larger than max boxcar width
+
+
     printf("Reading file: %s\n", filepath);
 
     FILE *f = fopen(filepath, "rb");
@@ -69,6 +123,7 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
         printf("Memory allocation failed\n");
         return NULL;
     }
+    
     size_t n = fread(data, sizeof(float), MAX_DATA_SIZE, f);
     if (n % 2 != 0) {
         printf("Data file does not contain an even number of floats\n");
@@ -78,64 +133,78 @@ float* compute_magnitude(const char *filepath, int *magnitude_size) {
     }
 
     size_t size = n / 2;
-    float* real_data = (float*) malloc(sizeof(float) * size);
-    float* imag_data = (float*) malloc(sizeof(float) * size);
-
-    for(size_t i = 0; i < size; i++) {
-        real_data[i] = data[2 * i];
-        imag_data[i] = data[2 * i + 1];
-    }
-
-    // compute mean and variance of real and imaginary components, ignoring DC component
-
-    float real_sum = 0.0, imag_sum = 0.0;
-    for(int i = 1; i < (int)n / 2; i++) {
-        real_sum += data[2 * i];
-        imag_sum += data[2 * i + 1];
-    }
-    float real_mean = real_sum / ((n-1) / 2);
-    float imag_mean = imag_sum / ((n-1) / 2);
-
-    float real_variance = 0.0, imag_variance = 0.0;
-    for(int i = 1; i < (int)n / 2; i++) {
-        real_variance += (data[2 * i] - real_mean)*(data[2 * i] - real_mean);
-        imag_variance += (data[2 * i + 1] - imag_mean)*(data[2 * i + 1] - imag_mean);
-    }
-    real_variance /= ((n-1) / 2);
-    imag_variance /= ((n-1) / 2);
-
-    float real_stdev = sqrt(real_variance);
-    float imag_stdev = sqrt(imag_variance);
-
-    float* magnitude = (float*) malloc(sizeof(float) * n / 2);
+    float* magnitude = (float*) malloc(sizeof(float) * size);
     if(magnitude == NULL) {
         printf("Memory allocation failed\n");
         free(data);
         return NULL;
     }
 
-    // set DC component of magnitude spectrum to 0
-    magnitude[0] = 0.0f;
-
-    float norm_real, norm_imag;
-
-    for (int i = 1; i < (int) n / 2; i++) {
-        norm_real = (data[2 * i] - real_mean) / real_stdev;
-        norm_imag = (data[2 * i + 1] - imag_mean) / imag_stdev;
-        magnitude[i] = norm_real*norm_real + norm_imag*norm_imag;
+    for(size_t i = 0; i < size; i++) {
+        magnitude[i] = data[2 * i]*data[2 * i] + data[2 * i + 1]*data[2 * i + 1];
     }
 
+    // Open a CSV file for writing out the normalized magnitude spectrum
+    FILE *csv_file = fopen("mad_normalized_magnitude_spectrum.csv", "w");
+    if (csv_file == NULL) {
+        printf("Could not open file for writing normalized magnitude spectrum.\n");
+        free(magnitude);
+        free(data);
+        return NULL;
+    }
+    fprintf(csv_file, "index,magnitude\n");
+
+    // Perform block normalization
+    for (size_t block_start = 0; block_start < size; block_start += block_size) {
+        size_t block_end = block_start + block_size < size ? block_start + block_size : size;
+        size_t current_block_size = block_end - block_start;
+
+        // Separate the real and imaginary parts
+        float* real_block = (float*) malloc(sizeof(float) * current_block_size);
+        float* imag_block = (float*) malloc(sizeof(float) * current_block_size);
+
+        if (real_block == NULL || imag_block == NULL) {
+            printf("Memory allocation failed for real_block or imag_block\n");
+            free(real_block);
+            free(imag_block);
+            free(magnitude);
+            free(data);
+            fclose(csv_file);
+            return NULL;
+        }
+
+        for (size_t i = 0; i < current_block_size; i++) {
+            real_block[i] = data[2 * (block_start + i)];
+            imag_block[i] = data[2 * (block_start + i) + 1];
+        }
+
+        // Normalize real and imaginary parts independently
+        normalize_block(real_block, current_block_size);
+        normalize_block(imag_block, current_block_size);
+
+        // Recompute the magnitudes after normalization
+        for (size_t i = block_start; i < block_end; i++) {
+            magnitude[i] = real_block[i - block_start] * real_block[i - block_start] +
+                        imag_block[i - block_start] * imag_block[i - block_start];
+            fprintf(csv_file, "%zu,%f\n", i, magnitude[i]);
+        }
+
+        free(real_block);
+        free(imag_block);
+    }
+
+    magnitude[0] = 0.0f; // set DC component of magnitude spectrum to 0
+
     fclose(f);
+    fclose(csv_file);
     free(data);
 
-    // pass the size of the magnitude array back through the output parameter
-    *magnitude_size = (int) n / 2;
-
-    // return the pointer to the magnitude array
+    *magnitude_size = (int) size;
+    printf("magnitude_size = %d\n", *magnitude_size);
     return magnitude;
 }
 
-void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold, int output_boxcar_width) {
+void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold) {
     printf("Computing boxcar filter candidates for %d boxcar widths...\n", max_boxcar_width);
 
     // Extract file name without extension
@@ -146,7 +215,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     // Create new filename
     char text_filename[255];
     snprintf(text_filename, 255, "%s.bctxtcand", base_name);
-    printf("Storing %d candidates per boxcar in text format in %s\n", candidates_per_boxcar, text_filename);
+    printf("Storing up to %d candidates per boxcar in text format in %s\n", candidates_per_boxcar, text_filename);
 
     FILE *text_candidates_file = fopen(text_filename, "w"); // open the file for writing. Make sure you have write access in this directory.
     if (text_candidates_file == NULL) {
@@ -155,16 +224,6 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     }
     fprintf(text_candidates_file, "sigma,power,period[ms],frequency[hz],frequency_index[bin],fdot[hz/s],boxcar_width[bins],acceleration[m/s^2]\n");
 
-    // Create new filename
-    char binary_filename[255];
-    snprintf(binary_filename, 255, "%s.bccand", base_name);
-    printf("Storing %d candidates per boxcar in binary format in %s\n", candidates_per_boxcar, binary_filename);
-
-    FILE *binary_candidates_file = fopen(binary_filename, "w"); // open the file for writing. Make sure you have write access in this directory.
-    if (binary_candidates_file == NULL) {
-        printf("Could not open file for writing binary results.\n");
-        return;
-    }
     
     // we want to ignore the DC component, so we start at index 1, by adding 1 to the pointer
     magnitudes_array++;
@@ -178,8 +237,8 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     float* output_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
 
 
-    //Candidate top_candidates[max_boxcar_width][candidates_per_boxcar];
-    Candidate* top_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
+    //Candidate candidates[max_boxcar_width][candidates_per_boxcar];
+    Candidate* candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
 
     valid_length = magnitudes_array_length;
     offset = 0;
@@ -202,101 +261,60 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
                 int window_start = i * window_length;
 
                 // initialise the candidate
-                int candidate_index = boxcar_width*candidates_per_boxcar + i;
-                top_candidates[candidate_index].sigma = 0.0;
-                top_candidates[candidate_index].power = 0.0;
-                top_candidates[candidate_index].period_ms = 0.0;
-                top_candidates[candidate_index].frequency = 0.0;
-                top_candidates[candidate_index].frequency_index = 0;
-                top_candidates[candidate_index].fdot = 0.0;
-                top_candidates[candidate_index].boxcar_width = 0;
-                top_candidates[candidate_index].acceleration = 0.0;
+                int candidate_index = (boxcar_width-2)*candidates_per_boxcar + i;
+                candidates[candidate_index].sigma = 0.0;
+                candidates[candidate_index].power = 0.0;
+                candidates[candidate_index].period_ms = 0.0;
+                candidates[candidate_index].frequency = 0.0;
+                candidates[candidate_index].frequency_index = 0;
+                candidates[candidate_index].fdot = 0.0;
+                candidates[candidate_index].boxcar_width = 0;
+                candidates[candidate_index].acceleration = 0.0;
 
                 for (int j = window_start; j < window_start + window_length; j++){
                     if (output_array[j] > local_max_power) {
                         local_max_power = output_array[j];
-                        top_candidates[candidate_index].frequency_index = j;
-                        top_candidates[candidate_index].power = local_max_power;
-                        top_candidates[candidate_index].boxcar_width = boxcar_width;
+                        candidates[candidate_index].frequency_index = j;
+                        candidates[candidate_index].power = local_max_power;
+                        candidates[candidate_index].boxcar_width = boxcar_width;
                         if (observation_time_seconds > 0) {
-                            top_candidates[candidate_index].frequency = frequency_from_observation_time_seconds(observation_time_seconds,top_candidates[candidate_index].frequency_index);
-                            top_candidates[candidate_index].period_ms = period_ms_from_frequency(top_candidates[candidate_index].frequency);
-                            top_candidates[candidate_index].fdot = fdot_from_boxcar_width(top_candidates[candidate_index].boxcar_width, observation_time_seconds);
-                            top_candidates[candidate_index].acceleration = acceleration_from_fdot(top_candidates[candidate_index].fdot, top_candidates[candidate_index].frequency);
+                            candidates[candidate_index].frequency = frequency_from_observation_time_seconds(observation_time_seconds,candidates[candidate_index].frequency_index);
+                            candidates[candidate_index].period_ms = period_ms_from_frequency(candidates[candidate_index].frequency);
+                            candidates[candidate_index].fdot = fdot_from_boxcar_width(candidates[candidate_index].boxcar_width, observation_time_seconds);
+                            candidates[candidate_index].acceleration = acceleration_from_fdot(candidates[candidate_index].fdot, candidates[candidate_index].frequency);
                         }
                     }
                 }
                 double num_independent_trials = ((double)max_boxcar_width)*((double)initial_length)/6.95; // 6.95 from eqn 6 in Anderson & Ransom 2018
-                //printf("num_independent_trials = %lf\n", num_independent_trials);
-                //printf("max_boxcar_width = %d\n", max_boxcar_width);
-                //printf("initial_length = %d\n", initial_length);
-                top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, num_independent_trials); 
-                //top_candidates[candidate_index].sigma = candidate_sigma(top_candidates[candidate_index].power*0.5, top_candidates[candidate_index].boxcar_width, max_boxcar_width);
+                candidates[candidate_index].sigma = candidate_sigma(candidates[candidate_index].power*0.5, candidates[candidate_index].boxcar_width, num_independent_trials); 
             }
-        }
-
-        if (boxcar_width == output_boxcar_width){
-            FILE *boxcar_file = fopen("boxcar_filtered_timeseries.dat", "wb");
-            printf("Storing boxcar filtered timeseries in boxcar_filtered_timeseries.dat\n");
-            if (boxcar_file == NULL) {
-                printf("Could not open file for writing boxcar filtered timeseries.\n");
-                return;
-            }
-            for (int i = 0; i < valid_length; i++) {
-                fwrite(&output_array[i], sizeof(float), 1, boxcar_file);
-            }
-            fclose(boxcar_file);
         }
     }
 
     if (candidates_per_boxcar > 0){
-        Candidate *all_candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
-        for (int i = 2; i < max_boxcar_width; i++) {
-            for (int j = 0; j < candidates_per_boxcar; j++) {
-                all_candidates[i*candidates_per_boxcar + j] = top_candidates[i*candidates_per_boxcar + j];
-            }
-        }
+        qsort(candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
 
-        qsort(all_candidates, candidates_per_boxcar*max_boxcar_width, sizeof(Candidate), compare_candidates);
-
-        for (int i = 2; i < max_boxcar_width*candidates_per_boxcar; i++){
-            if (all_candidates[i].sigma > sigma_threshold ){
-            fprintf(text_candidates_file, "%lf,%f,%f,%f,%d,%f,%d,%f\n", 
-                all_candidates[i].sigma,
-                all_candidates[i].power,
-                all_candidates[i].period_ms,
-                all_candidates[i].frequency,
-                all_candidates[i].frequency_index,
-                all_candidates[i].fdot,
-                all_candidates[i].boxcar_width,
-                all_candidates[i].acceleration);
-            fwrite(&all_candidates[i], sizeof(Candidate), 1, binary_candidates_file);
+        for (int i = 0; i < max_boxcar_width*candidates_per_boxcar; i++){
+            if (candidates[i].sigma > sigma_threshold ){
+                fprintf(text_candidates_file, "%lf,%f,%f,%f,%d,%f,%d,%f\n", 
+                    candidates[i].sigma,
+                    candidates[i].power,
+                    candidates[i].period_ms,
+                    candidates[i].frequency,
+                    candidates[i].frequency_index,
+                    candidates[i].fdot,
+                    candidates[i].boxcar_width,
+                    candidates[i].acceleration);
             }
         }
     }
     fclose(text_candidates_file);
-    fclose(binary_candidates_file);
     free(base_name);
-    free(top_candidates);
+    free(candidates);
     free(output_array);
 }
 
-void profile_candidate_sigma(double power_min, double power_max, double number_of_power_steps, 
-                                int numsum_min, int numsum_max, int number_of_numsum_steps, 
-                                double independent_trials_min, double independent_trials_max, double number_of_independent_trials_steps){
-    FILE *profile_file = fopen("profile.csv", "w");
-    double power_step = (power_max - power_min) / number_of_power_steps;
-    int numsum_step = (numsum_max - numsum_min) / number_of_numsum_steps;
-    double independent_trials_step = (independent_trials_max - independent_trials_min) / number_of_independent_trials_steps;
-    for (double power = power_min; power < power_max; power = power + power_step){
-        for (int numsum = numsum_min; numsum < numsum_max; numsum = numsum + numsum_step){
-            for (double independent_trials = independent_trials_min; independent_trials < independent_trials_max; independent_trials = independent_trials + independent_trials_step){
-                double sigma = candidate_sigma(power, numsum, independent_trials);
-                fprintf(profile_file, "%lf,%lf,%d,%lf\n", sigma, power, numsum, independent_trials);
-            }
-        }
-    }
-}
+
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
@@ -309,13 +327,12 @@ int main(int argc, char *argv[]) {
         printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be = zmax * candidates\n");
         printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
         printf("\t-sigma [float]\tThe sigma threshold (default = 0.0), candidates with sigma below this value will not be written to the output files\n");
-        printf("\t-output_boxcar_width [int]\tThe boxcar width to output the boxcar filtered timeseries for (default = 0), if 0, no output will be written\n");
         return 1;
     }
 
     // Get the number of candidates per boxcar from the command line arguments
     // If not provided, default to 10
-    int candidates_per_boxcar = DEFAULT_CANDIDATES_PER_BOXCAR;
+    int candidates_per_boxcar = 10;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-candidates") == 0 && i+1 < argc) {
             candidates_per_boxcar = atoi(argv[i+1]);
@@ -363,19 +380,10 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // Get the boxcar width to output the boxcar filtered timeseries for from the command line arguments
-    // If not provided, default to 0
-    int output_boxcar_width = 0;
-    for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "-output_boxcar_width") == 0 && i+1 < argc) {
-            output_boxcar_width = atoi(argv[i+1]);
-        }
-    }
-
     omp_set_num_threads(num_threads);
 
     int magnitude_array_size;
-    float* magnitudes = compute_magnitude(argv[1], &magnitude_array_size);
+    float* magnitudes = compute_magnitude_block_normalization_mad(argv[1], &magnitude_array_size);
 
     if(magnitudes == NULL) {
         printf("Failed to compute magnitudes.\n");
@@ -388,24 +396,8 @@ int main(int argc, char *argv[]) {
         argv[1], 
         candidates_per_boxcar, 
         observation_time_seconds, 
-        sigma_threshold, 
-        output_boxcar_width);
+        sigma_threshold);
 
-    double power_min = 1.0;
-    double power_max = 10000.0;
-    double number_of_power_steps = 50.0;
-    int numsum_min = 2;
-    int numsum_max = 1200;
-    int number_of_numsum_steps = 50;
-    double independent_trials_min = 10000.0;
-    double independent_trials_max = 1000000.0;
-    double number_of_independent_trials_steps = 10;
-
-    /*
-    profile_candidate_sigma(power_min, power_max, number_of_power_steps, 
-                                numsum_min, numsum_max, number_of_numsum_steps, 
-                                independent_trials_min, independent_trials_max, number_of_independent_trials_steps);
-    */
 
     return 0;
 }
