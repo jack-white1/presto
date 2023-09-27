@@ -101,14 +101,10 @@ void normalize_block(float* block, size_t block_size) {
         }
     }
 
-    // print statistics
-    //printf("median = %f\n", median);
-    //printf("mad = %f\n", mad);
 }
 
 float* compute_magnitude_block_normalization_mad(const char *filepath, int *magnitude_size) {
     size_t block_size = 131072; // needs to be much larger than max boxcar width
-
 
     printf("Reading file: %s\n", filepath);
 
@@ -139,21 +135,12 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
         free(data);
         return NULL;
     }
-
+    #pragma omp parallel for
     for(size_t i = 0; i < size; i++) {
         magnitude[i] = data[2 * i]*data[2 * i] + data[2 * i + 1]*data[2 * i + 1];
     }
 
-    // Open a CSV file for writing out the normalized magnitude spectrum
-    FILE *csv_file = fopen("mad_normalized_magnitude_spectrum.csv", "w");
-    if (csv_file == NULL) {
-        printf("Could not open file for writing normalized magnitude spectrum.\n");
-        free(magnitude);
-        free(data);
-        return NULL;
-    }
-    fprintf(csv_file, "index,magnitude\n");
-
+    #pragma omp parallel for
     // Perform block normalization
     for (size_t block_start = 0; block_start < size; block_start += block_size) {
         size_t block_end = block_start + block_size < size ? block_start + block_size : size;
@@ -167,10 +154,6 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
             printf("Memory allocation failed for real_block or imag_block\n");
             free(real_block);
             free(imag_block);
-            free(magnitude);
-            free(data);
-            fclose(csv_file);
-            return NULL;
         }
 
         for (size_t i = 0; i < current_block_size; i++) {
@@ -186,7 +169,6 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
         for (size_t i = block_start; i < block_end; i++) {
             magnitude[i] = real_block[i - block_start] * real_block[i - block_start] +
                         imag_block[i - block_start] * imag_block[i - block_start];
-            fprintf(csv_file, "%zu,%f\n", i, magnitude[i]);
         }
 
         free(real_block);
@@ -196,11 +178,9 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
     magnitude[0] = 0.0f; // set DC component of magnitude spectrum to 0
 
     fclose(f);
-    fclose(csv_file);
     free(data);
 
     *magnitude_size = (int) size;
-    printf("magnitude_size = %d\n", *magnitude_size);
     return magnitude;
 }
 
