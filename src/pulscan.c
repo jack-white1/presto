@@ -217,7 +217,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     Candidate* candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
 
     // set candidates array to all zeros
-    /*
+
     for (int i = 0; i < max_boxcar_width * candidates_per_boxcar; i++){
         candidates[i].sigma = 0.0;
         candidates[i].power = 0.0;
@@ -228,7 +228,6 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         candidates[i].boxcar_width = 0;
         candidates[i].acceleration = 0.0;
     }
-    */
 
     valid_length = magnitudes_array_length;
     offset = 0;
