@@ -135,10 +135,6 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
         free(data);
         return NULL;
     }
-    #pragma omp parallel for
-    for(size_t i = 0; i < size; i++) {
-        magnitude[i] = data[2 * i]*data[2 * i] + data[2 * i + 1]*data[2 * i + 1];
-    }
 
     #pragma omp parallel for
     // Perform block normalization
@@ -184,7 +180,7 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
     return magnitude;
 }
 
-void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold) {
+void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold, int z_step) {
     printf("Computing boxcar filter candidates for %d boxcar widths...\n", max_boxcar_width);
 
     // Extract file name without extension
@@ -220,11 +216,25 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     //Candidate candidates[max_boxcar_width][candidates_per_boxcar];
     Candidate* candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
 
+    // set candidates array to all zeros
+    /*
+    for (int i = 0; i < max_boxcar_width * candidates_per_boxcar; i++){
+        candidates[i].sigma = 0.0;
+        candidates[i].power = 0.0;
+        candidates[i].period_ms = 0.0;
+        candidates[i].frequency = 0.0;
+        candidates[i].frequency_index = 0;
+        candidates[i].fdot = 0.0;
+        candidates[i].boxcar_width = 0;
+        candidates[i].acceleration = 0.0;
+    }
+    */
+
     valid_length = magnitudes_array_length;
     offset = 0;
 
     for (int boxcar_width = 2; boxcar_width < max_boxcar_width; boxcar_width++) {
-
+        //printf("Computing boxcar width %d\n", boxcar_width);
         valid_length -= 1;
         offset += 1;
 
@@ -233,40 +243,42 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
             output_array[i] += magnitudes_array[i + offset];
         }
 
-        int window_length = valid_length / candidates_per_boxcar;
-        if (candidates_per_boxcar > 0){
-            #pragma omp parallel for
-            for (int i = 0; i < candidates_per_boxcar; i++) {
-                float local_max_power = -INFINITY;
-                int window_start = i * window_length;
+        if (boxcar_width % z_step == 0){
+            int window_length = valid_length / candidates_per_boxcar;
+            if (candidates_per_boxcar > 0){
+                #pragma omp parallel for
+                for (int i = 0; i < candidates_per_boxcar; i++) {
+                    float local_max_power = -INFINITY;
+                    int window_start = i * window_length;
 
-                // initialise the candidate
-                int candidate_index = (boxcar_width-2)*candidates_per_boxcar + i;
-                candidates[candidate_index].sigma = 0.0;
-                candidates[candidate_index].power = 0.0;
-                candidates[candidate_index].period_ms = 0.0;
-                candidates[candidate_index].frequency = 0.0;
-                candidates[candidate_index].frequency_index = 0;
-                candidates[candidate_index].fdot = 0.0;
-                candidates[candidate_index].boxcar_width = 0;
-                candidates[candidate_index].acceleration = 0.0;
+                    // initialise the candidate
+                    int candidate_index = (boxcar_width-2)*candidates_per_boxcar + i;
+                    candidates[candidate_index].sigma = 0.0;
+                    candidates[candidate_index].power = 0.0;
+                    candidates[candidate_index].period_ms = 0.0;
+                    candidates[candidate_index].frequency = 0.0;
+                    candidates[candidate_index].frequency_index = 0;
+                    candidates[candidate_index].fdot = 0.0;
+                    candidates[candidate_index].boxcar_width = 0;
+                    candidates[candidate_index].acceleration = 0.0;
 
-                for (int j = window_start; j < window_start + window_length; j++){
-                    if (output_array[j] > local_max_power) {
-                        local_max_power = output_array[j];
-                        candidates[candidate_index].frequency_index = j;
-                        candidates[candidate_index].power = local_max_power;
-                        candidates[candidate_index].boxcar_width = boxcar_width;
-                        if (observation_time_seconds > 0) {
-                            candidates[candidate_index].frequency = frequency_from_observation_time_seconds(observation_time_seconds,candidates[candidate_index].frequency_index);
-                            candidates[candidate_index].period_ms = period_ms_from_frequency(candidates[candidate_index].frequency);
-                            candidates[candidate_index].fdot = fdot_from_boxcar_width(candidates[candidate_index].boxcar_width, observation_time_seconds);
-                            candidates[candidate_index].acceleration = acceleration_from_fdot(candidates[candidate_index].fdot, candidates[candidate_index].frequency);
+                    for (int j = window_start; j < window_start + window_length; j++){
+                        if (output_array[j] > local_max_power) {
+                            local_max_power = output_array[j];
+                            candidates[candidate_index].frequency_index = j;
+                            candidates[candidate_index].power = local_max_power;
+                            candidates[candidate_index].boxcar_width = boxcar_width;
+                            if (observation_time_seconds > 0) {
+                                candidates[candidate_index].frequency = frequency_from_observation_time_seconds(observation_time_seconds,candidates[candidate_index].frequency_index);
+                                candidates[candidate_index].period_ms = period_ms_from_frequency(candidates[candidate_index].frequency);
+                                candidates[candidate_index].fdot = fdot_from_boxcar_width(candidates[candidate_index].boxcar_width, observation_time_seconds);
+                                candidates[candidate_index].acceleration = acceleration_from_fdot(candidates[candidate_index].fdot, candidates[candidate_index].frequency);
+                            }
                         }
                     }
+                    double num_independent_trials = ((double)max_boxcar_width)*((double)initial_length)/6.95; // 6.95 from eqn 6 in Anderson & Ransom 2018
+                    candidates[candidate_index].sigma = candidate_sigma(candidates[candidate_index].power*0.5, candidates[candidate_index].boxcar_width, num_independent_trials); 
                 }
-                double num_independent_trials = ((double)max_boxcar_width)*((double)initial_length)/6.95; // 6.95 from eqn 6 in Anderson & Ransom 2018
-                candidates[candidate_index].sigma = candidate_sigma(candidates[candidate_index].power*0.5, candidates[candidate_index].boxcar_width, num_independent_trials); 
             }
         }
     }
@@ -307,6 +319,7 @@ int main(int argc, char *argv[]) {
         printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be = zmax * candidates\n");
         printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
         printf("\t-sigma [float]\tThe sigma threshold (default = 0.0), candidates with sigma below this value will not be written to the output files\n");
+        printf("\t-zstep [int]\tThe step size in z (default = 1).\n");
         return 1;
     }
 
@@ -360,6 +373,15 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Get the z step size from the command line arguments
+    // If not provided, default to 1
+    int z_step = 1;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-zstep") == 0 && i+1 < argc) {
+            z_step = atoi(argv[i+1]);
+        }
+    }
+
     omp_set_num_threads(num_threads);
 
     int magnitude_array_size;
@@ -376,7 +398,8 @@ int main(int argc, char *argv[]) {
         argv[1], 
         candidates_per_boxcar, 
         observation_time_seconds, 
-        sigma_threshold);
+        sigma_threshold,
+        z_step);
 
 
     return 0;
