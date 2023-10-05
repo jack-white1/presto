@@ -104,7 +104,7 @@ void normalize_block(float* block, size_t block_size) {
 }
 
 float* compute_magnitude_block_normalization_mad(const char *filepath, int *magnitude_size) {
-    size_t block_size = 131072; // needs to be much larger than max boxcar width
+    size_t block_size = 32768; // needs to be much larger than max boxcar width
 
     printf("Reading file: %s\n", filepath);
 
@@ -114,13 +114,22 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
         return NULL;
     }
 
-    float* data = (float*) malloc(sizeof(float) * MAX_DATA_SIZE);
+    // Determine the size of the file
+    fseek(f, 0, SEEK_END);
+    long filesize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    size_t num_floats = filesize / sizeof(float);
+
+    // Allocate memory for the data
+    float* data = (float*) malloc(sizeof(float) * num_floats);
     if(data == NULL) {
         printf("Memory allocation failed\n");
+        fclose(f);
         return NULL;
     }
     
-    size_t n = fread(data, sizeof(float), MAX_DATA_SIZE, f);
+    size_t n = fread(data, sizeof(float), num_floats, f);
     if (n % 2 != 0) {
         printf("Data file does not contain an even number of floats\n");
         fclose(f);
@@ -218,7 +227,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
 
     // set candidates array to all zeros
 
-    for (int i = 0; i < max_boxcar_width * candidates_per_boxcar; i++){
+    /*for (int i = 0; i < max_boxcar_width * candidates_per_boxcar; i++){
         candidates[i].sigma = 0.0;
         candidates[i].power = 0.0;
         candidates[i].period_ms = 0.0;
@@ -227,7 +236,7 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
         candidates[i].fdot = 0.0;
         candidates[i].boxcar_width = 0;
         candidates[i].acceleration = 0.0;
-    }
+    }*/
 
     valid_length = magnitudes_array_length;
     offset = 0;
