@@ -15,7 +15,6 @@
 #include <omp.h>
 #include "accel.h"
 
-#define MAX_DATA_SIZE 10000000000 // assume file won't be larger than this, 10M samples, increase if required
 #define SPEED_OF_LIGHT 299792458.0
 
 typedef struct {
