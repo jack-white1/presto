@@ -106,7 +106,7 @@ void normalize_block(float* block, size_t block_size) {
 float* compute_magnitude_block_normalization_mad(const char *filepath, int *magnitude_size) {
     size_t block_size = 32768; // needs to be much larger than max boxcar width
 
-    printf("Reading file: %s\n", filepath);
+    //printf("Reading file: %s\n", filepath);
 
     FILE *f = fopen(filepath, "rb");
     if (f == NULL) {
@@ -315,7 +315,6 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
 }
 
 void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold, int z_step, int block_width) {
-    printf("Computing boxcar filter candidates for %d boxcar widths...\n", max_boxcar_width);
 
     // Extract file name without extension
     char *base_name = strdup(filename);
@@ -325,16 +324,14 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     // Create new filename
     char text_filename[255];
     snprintf(text_filename, 255, "%s.bctxtcand", base_name);
-    printf("Storing candidates in text format in %s\n", text_filename);
 
     FILE *text_candidates_file = fopen(text_filename, "w"); // open the file for writing. Make sure you have write access in this directory.
-    printf("Opened text candidates file\n");
     if (text_candidates_file == NULL) {
         printf("Could not open file for writing text results.\n");
         return;
     }
     fprintf(text_candidates_file, "power,frequency_index_lower_bound[bin],frequency_index_upper_bound[bin],z[bins]\n");
-    printf("Initialised text candidates file\n");
+
     
     // we want to ignore the DC component, so we start at index 1, by adding 1 to the pointer
     magnitudes_array++;
@@ -353,7 +350,6 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     //memset max array to zero
     memset(max_array, 0.0, sizeof(float) * num_blocks * zmax);
 
-    printf("Beginning boxcar filtering...\n");
 
     // begin timer for boxcar filtering
     double start = omp_get_wtime();
@@ -394,13 +390,15 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
                 sum_array[i] += lookup_array[i + z];
             }
             // find max
-            local_max_power = -INFINITY;
-            for (int i = 0; i < block_width; i++){
-                if (sum_array[i] > local_max_power) {
-                    local_max_power = sum_array[i];
+            if (z % zstep == 0){
+                local_max_power = -INFINITY;
+                for (int i = 0; i < block_width; i++){
+                    if (sum_array[i] > local_max_power) {
+                        local_max_power = sum_array[i];
+                    }
                 }
+                max_array[block_index*zmax + z] = local_max_power;
             }
-            max_array[block_index*zmax + z] = local_max_power;    
         }
     }
 
@@ -410,19 +408,27 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     double time_spent = end - start;
     printf("Boxcar filtering took %f seconds\n", time_spent);
 
+
+    // begin timer for writing output file
+    start = omp_get_wtime();
     // write out max_array to text file
     for (int i = 0; i < num_blocks; i++){
         for (int z = 0; z < zmax; z++){
-            fprintf(text_candidates_file, "%f,%d,%d,%d\n", 
-                max_array[i*zmax + z],
-                i*block_width,
-                i*block_width + block_width,
-                z);
+            if (z % zstep == 0){
+                fprintf(text_candidates_file, "%f,%d,%d,%d\n", 
+                    max_array[i*zmax + z],
+                    i*block_width,
+                    i*block_width + block_width,
+                    z);
+            }
         }
     }
-    
     fclose(text_candidates_file);
     free(base_name);
+    free(max_array);
+    end = omp_get_wtime();
+    time_spent = end - start;
+    printf("Writing output file took %f seconds\n", time_spent);
 }
 
 
@@ -523,6 +529,9 @@ int main(int argc, char *argv[]) {
 
     omp_set_num_threads(num_threads);
 
+
+    // begin timer for reading input file
+    double start = omp_get_wtime();
     int magnitude_array_size;
     float* magnitudes = compute_magnitude_block_normalization_mad(argv[1], &magnitude_array_size);
 
@@ -530,6 +539,9 @@ int main(int argc, char *argv[]) {
         printf("Failed to compute magnitudes.\n");
         return 1;
     }
+    double end = omp_get_wtime();
+    double time_spent = end - start;
+    printf("Reading input file took %f seconds\n", time_spent);
 
     if (cache_optimised == 0){
         recursive_boxcar_filter(magnitudes, 
