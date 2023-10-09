@@ -356,7 +356,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     printf("Beginning boxcar filtering...\n");
 
     // begin timer for boxcar filtering
-    clock_t start = clock();
+    double start = omp_get_wtime();
 
     #pragma omp parallel for
     for (int block_index = 0; block_index < num_blocks; block_index++){
@@ -405,8 +405,9 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     }
 
     // end timer for boxcar filtering
-    clock_t end = clock();
-    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+    double end = omp_get_wtime();
+
+    double time_spent = end - start;
     printf("Boxcar filtering took %f seconds\n", time_spent);
 
     // write out max_array to text file
