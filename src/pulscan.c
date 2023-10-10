@@ -14,9 +14,20 @@
 #include <time.h>
 #include <omp.h>
 #include "accel.h"
-//#include "presto.h"
 
 #define SPEED_OF_LIGHT 299792458.0
+
+// ANSI Color Codes
+#define RESET   "\033[0m"
+#define BLACK   "\033[30m"
+#define RED     "\033[31m"
+#define GREEN   "\033[32m"
+#define YELLOW  "\033[33m"
+#define BLUE    "\033[34m"
+#define MAGENTA "\033[35m"
+#define CYAN    "\033[36m"
+#define WHITE   "\033[37m"
+
 
 typedef struct {
     double sigma;
@@ -293,7 +304,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     double end = omp_get_wtime();
 
     double time_spent = end - start;
-    printf("Searching the data took %f seconds\n", time_spent);
+    printf("Searching the data took  %f seconds\n", time_spent);
 
     start = omp_get_wtime();
 
@@ -363,7 +374,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 
     end = omp_get_wtime();
     time_spent = end - start;
-    printf("Sorting + writing candidates took %f seconds\n", time_spent);
+    printf("Producing output took    %f seconds\n", time_spent);
 
     fclose(text_candidates_file);
     free(base_name);
@@ -472,7 +483,7 @@ int main(int argc, char *argv[]) {
     }
     double end = omp_get_wtime();
     double time_spent = end - start;
-    printf("Reading and normalising input file took %f seconds\n", time_spent);
+    printf("Preparing data took      %f seconds\n", time_spent);
 
     recursive_boxcar_filter_cache_optimised(magnitudes, 
             magnitude_array_size, 
@@ -489,6 +500,6 @@ int main(int argc, char *argv[]) {
     // end overall program timer
     double end_program = omp_get_wtime();
     double time_spent_program = end_program - start_program;
-    printf("\nTotal time spent was %f seconds\n", time_spent_program);
+    printf("------------------------------------------\nTotal time spent was     " GREEN "%f seconds" RESET "\n", time_spent_program);
     return 0;
 }
