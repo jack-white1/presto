@@ -14,6 +14,9 @@
 #include <time.h>
 #include <omp.h>
 #include "accel.h"
+#include <immintrin.h> // for AVX
+#include <avx2intrin.h> // for AVX2
+
 
 #define SPEED_OF_LIGHT 299792458.0
 
@@ -292,13 +295,16 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 
         candidates[block_index*zmax].power = local_max_power;
         candidates[block_index*zmax].index = local_max_index;
-
+        candidates[block_index*zmax].z = 0;
+        
         for (int z = 1; z < zmax; z++){
             // boxcar filter
             for (int i = 0; i < block_width; i++){
                 sum_array[i] += lookup_array[i + z];
             }
+
             // find max
+            /*
             if (z % z_step == 0){
                 local_max_power = -INFINITY;
                 local_max_index = 0;
@@ -310,7 +316,65 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
                 }
                 candidates[num_blocks*z + block_index].power = local_max_power;
                 candidates[num_blocks*z + block_index].index = local_max_index;
+            }*/
+
+            //find max and its index using AVX
+            if (z % z_step == 0){
+                __m256 maxValVec = _mm256_set1_ps(-INFINITY);
+                __m256i maxIdxVec = _mm256_setzero_si256(); // Initialized to 0
+                const int elements_per_reg = 8;  // AVX register has 8 float elements
+
+                for (int i = 0; i < block_width; i += elements_per_reg){
+                    __m256 data = _mm256_loadu_ps(&sum_array[i]);
+                    __m256 mask = _mm256_cmp_ps(data, maxValVec, _CMP_GT_OQ);
+                    maxValVec = _mm256_max_ps(maxValVec, data);
+
+                    __m256i idx = _mm256_set_epi32(i+7, i+6, i+5, i+4, i+3, i+2, i+1, i);
+                    __m256i masked_idx = _mm256_blendv_epi8(maxIdxVec, idx, _mm256_castps_si256(mask));
+                    maxIdxVec = masked_idx;
+                }
+
+                float max_vals[elements_per_reg];
+                int max_indices[elements_per_reg];
+                _mm256_storeu_ps(max_vals, maxValVec);
+                _mm256_storeu_si256((__m256i*)max_indices, maxIdxVec);
+
+                local_max_power = max_vals[0];
+                local_max_index = max_indices[0];
+                for (int i = 1; i < elements_per_reg; i++) {
+                    if (max_vals[i] > local_max_power) {
+                        local_max_power = max_vals[i];
+                        local_max_index = (long)max_indices[i] + (long)block_index*(long)block_width;
+                    }
+                }
+
+                candidates[num_blocks*z + block_index].power = local_max_power;
+                candidates[num_blocks*z + block_index].index = local_max_index;
             }
+
+            // find max using AVX
+            /*
+            if (z % z_step == 0){
+                __m256 maxValVec = _mm256_set1_ps(-INFINITY);
+                for (int i = 0; i < block_width; i += 8){
+                    maxValVec = _mm256_max_ps(maxValVec, _mm256_loadu_ps(&sum_array[i]));
+                }
+
+                float result[8];
+                _mm256_storeu_ps(result, maxValVec);
+
+                local_max_power = result[0];
+                for (int i = 1; i < 8; i++) {
+                    if (result[i] > local_max_power) {
+                        local_max_power = result[i];
+                        local_max_index = i;
+                    }
+                }
+                local_max_index += (long)block_index*(long)block_width;
+
+                candidates[num_blocks*z + block_index].power = local_max_power;
+                candidates[num_blocks*z + block_index].index = local_max_index;
+            }*/
         }
     }
 
@@ -414,7 +478,7 @@ int main(int argc, char *argv[]) {
         printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
         printf("\t-sigma [float]\tThe sigma threshold (default = 1.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-zstep [int]\tThe step size in z (default = 2).\n");
-        printf("\t-block_width\t The block width to use for the cache optimised version of the algorithm (default = 10000)\n");
+        printf("\t-block_width\t The block width to use for the cache optimised version of the algorithm (default = 40000)\n");
         return 1;
     }
 
@@ -479,7 +543,7 @@ int main(int argc, char *argv[]) {
 
     // Get the block width from the command line arguments
     // If not provided, default to 10000
-    int block_width = 10000;
+    int block_width = 40000;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-block_width") == 0 && i+1 < argc) {
             block_width = atoi(argv[i+1]);
