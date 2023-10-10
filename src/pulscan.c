@@ -118,10 +118,10 @@ void normalize_block(float* block, size_t block_size) {
 
 }
 
-float* compute_magnitude_block_normalization_mad(const char *filepath, int *magnitude_size) {
+float* compute_magnitude_block_normalization_mad(const char *filepath, int *magnitude_size, int ncpus, int max_boxcar_width) {
     // begin timer for reading input file
     double start = omp_get_wtime();
-    size_t block_size = 32768; // needs to be much larger than max boxcar width
+    size_t block_size = max_boxcar_width * 30; // needs to be much larger than max boxcar width
 
     //printf("Reading file: %s\n", filepath);
 
@@ -212,11 +212,14 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
 
     end = omp_get_wtime();
     time_spent = end - start;
-    printf("Normalizing the data took  %f seconds (multi-threaded)\n", time_spent);
+    printf("Normalizing the data took  %f seconds (%d threads)\n", time_spent, ncpus);
     return magnitude;
 }
 
-void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnitudes_array_length, int max_boxcar_width, const char *filename, int candidates_per_boxcar, float observation_time_seconds, float sigma_threshold, int z_step, int block_width) {
+void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnitudes_array_length, \
+                                int max_boxcar_width, const char *filename, int candidates_per_boxcar, \
+                                float observation_time_seconds, float sigma_threshold, int z_step, \
+                                int block_width, int ncpus) {
 
     // Extract file name without extension
     char *base_name = strdup(filename);
@@ -315,7 +318,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     double end = omp_get_wtime();
 
     double time_spent = end - start;
-    printf("Searching the data took    %f seconds (multi-threaded)\n", time_spent);
+    printf("Searching the data took    %f seconds (%d threads)\n", time_spent, ncpus);
 
     start = omp_get_wtime();
 
@@ -406,8 +409,8 @@ int main(int argc, char *argv[]) {
         printf("\tfile [string]\tThe input file path (.fft file output of PRESTO realfft)\n");
         printf("Optional arguments:\n");
         printf("\t-ncpus [int]\tThe number of OpenMP threads to use (default 1)\n");
-        printf("\t-zmax [int]\tThe max boxcar width (default = 1200, max = the size of your input data)\n");
-        printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be = zmax * candidates\n");
+        printf("\t-zmax [int]\tThe max boxcar width (default = 200, max = the size of your input data)\n");
+        printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be < zmax * candidates\n");
         printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
         printf("\t-sigma [float]\tThe sigma threshold (default = 1.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-zstep [int]\tThe step size in z (default = 2).\n");
@@ -426,16 +429,16 @@ int main(int argc, char *argv[]) {
 
     // Get the number of OpenMP threads from the command line arguments
     // If not provided, default to 1
-    int num_threads = 1;
+    int ncpus = 1;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-ncpus") == 0 && i+1 < argc) {
-            num_threads = atoi(argv[i+1]);
+            ncpus = atoi(argv[i+1]);
         }
     }
 
     // Get the max_boxcar_width from the command line arguments
-    // If not provided, default to 1200
-    int max_boxcar_width = 1200;
+    // If not provided, default to 200
+    int max_boxcar_width = 200;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-zmax") == 0 && i+1 < argc) {
             max_boxcar_width = atoi(argv[i+1]);
@@ -458,7 +461,7 @@ int main(int argc, char *argv[]) {
 
     // Get the sigma threshold value from the command line arguments
     // If not provided, default to 1.0
-    float sigma_threshold = 1.0f;
+    float sigma_threshold = 0.0f;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-sigma") == 0 && i+1 < argc) {
             sigma_threshold = atof(argv[i+1]);
@@ -483,11 +486,11 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    omp_set_num_threads(num_threads);
+    omp_set_num_threads(ncpus);
 
 
     int magnitude_array_size;
-    float* magnitudes = compute_magnitude_block_normalization_mad(argv[1], &magnitude_array_size);
+    float* magnitudes = compute_magnitude_block_normalization_mad(argv[1], &magnitude_array_size, ncpus, max_boxcar_width);
 
     if(magnitudes == NULL) {
         printf("Failed to compute magnitudes.\n");
@@ -503,7 +506,8 @@ int main(int argc, char *argv[]) {
             observation_time_seconds, 
             sigma_threshold,
             z_step,
-            block_width);
+            block_width,
+            ncpus);
 
     free(magnitudes);
 
