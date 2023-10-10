@@ -312,25 +312,23 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 
     float temp_sigma;
     // extract candidates_per_boxcar candidates from max_array
-    #pragma omp parallel
-    for (int z = 0; z < zmax; z++){
+    //#pragma omp parallel
+    for (int z = 0; z < zmax; z+=z_step){
         cache_optimised_candidate* local_candidates = (cache_optimised_candidate*) malloc(sizeof(cache_optimised_candidate) *  num_blocks);
-        if (z % z_step == 0){
-            // extract the row from candidates using memcpy
-            memcpy(local_candidates, candidates + z*num_blocks, sizeof(cache_optimised_candidate) * num_blocks);
+        // extract the row from candidates using memcpy
+        memcpy(local_candidates, candidates + z*num_blocks, sizeof(cache_optimised_candidate) * num_blocks);
 
-            // sort the row by descending .power values using qsort
-            qsort(local_candidates, num_blocks, sizeof(cache_optimised_candidate), compare_cache_optimised_candidates_power);
+        // sort the row by descending .power values using qsort
+        qsort(local_candidates, num_blocks, sizeof(cache_optimised_candidate), compare_cache_optimised_candidates_power);
 
-            // write the top candidates_per_boxcar candidates to final_output_candidates, if they are above the sigma threshold
-            for (int i = 0; i < candidates_per_boxcar; i++){
-                temp_sigma = candidate_sigma(local_candidates[i].power*0.5, z, num_independent_trials);
-                if (temp_sigma > sigma_threshold){
-                    final_output_candidates[z*candidates_per_boxcar + i].sigma = temp_sigma;
-                    final_output_candidates[z*candidates_per_boxcar + i].power = local_candidates[i].power;
-                    final_output_candidates[z*candidates_per_boxcar + i].index = local_candidates[i].index;
-                    final_output_candidates[z*candidates_per_boxcar + i].z = z;
-                }
+        // write the top candidates_per_boxcar candidates to final_output_candidates, if they are above the sigma threshold
+        for (int i = 0; i < candidates_per_boxcar; i++){
+            temp_sigma = candidate_sigma(local_candidates[i].power*0.5, z, num_independent_trials);
+            if (temp_sigma > sigma_threshold){
+                final_output_candidates[z*candidates_per_boxcar + i].sigma = temp_sigma;
+                final_output_candidates[z*candidates_per_boxcar + i].power = local_candidates[i].power;
+                final_output_candidates[z*candidates_per_boxcar + i].index = local_candidates[i].index;
+                final_output_candidates[z*candidates_per_boxcar + i].z = z;
             }
         }
     }
