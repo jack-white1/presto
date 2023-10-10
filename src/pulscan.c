@@ -29,9 +29,33 @@ typedef struct {
     float acceleration;
 } Candidate;
 
+typedef struct {
+    double sigma;
+    float power;
+    long index;
+    int z;
+} cache_optimised_candidate;
+
+
 int compare_candidates(const void *a, const void *b) {
     Candidate *candidateA = (Candidate *)a;
     Candidate *candidateB = (Candidate *)b;
+    if(candidateA->sigma > candidateB->sigma) return -1; // for descending order
+    if(candidateA->sigma < candidateB->sigma) return 1;
+    return 0;
+}
+
+int compare_cache_optimised_candidates_power(const void *a, const void *b) {
+    cache_optimised_candidate *candidateA = (cache_optimised_candidate *)a;
+    cache_optimised_candidate *candidateB = (cache_optimised_candidate *)b;
+    if(candidateA->power > candidateB->power) return -1; // for descending order
+    if(candidateA->power < candidateB->power) return 1;
+    return 0;
+}
+
+int compare_cache_optimised_candidates_sigma(const void *a, const void *b) {
+    cache_optimised_candidate *candidateA = (cache_optimised_candidate *)a;
+    cache_optimised_candidate *candidateB = (cache_optimised_candidate *)b;
     if(candidateA->sigma > candidateB->sigma) return -1; // for descending order
     if(candidateA->sigma < candidateB->sigma) return 1;
     return 0;
@@ -221,7 +245,6 @@ void recursive_boxcar_filter(float* magnitudes_array, int magnitudes_array_lengt
     // prepare output array
     float* output_array = (float*) malloc(sizeof(float) * magnitudes_array_length);
 
-
     //Candidate candidates[max_boxcar_width][candidates_per_boxcar];
     Candidate* candidates = (Candidate*) malloc(sizeof(Candidate) * max_boxcar_width * candidates_per_boxcar);
 
@@ -347,7 +370,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         printf("Could not open file for writing text results.\n");
         return;
     }
-    fprintf(text_candidates_file, "sigma,power,rbin,zbin\n");
+    fprintf(text_candidates_file, "sigma, \tpower, \tperiod, \tfrequency, \trbin, \tf-dot, \tz, \tacceleration\n");
 
     
     // we want to ignore the DC component, so we start at index 1, by adding 1 to the pointer
@@ -364,14 +387,10 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 
     int num_blocks = (valid_length + block_width - 1) / block_width;
 
-    float* max_array = (float*) malloc(sizeof(float) *  num_blocks * zmax);
-    //memset max array to zero
-    memset(max_array, 0.0, sizeof(float) * num_blocks * zmax);
-
-    long* max_index_array = (long*) malloc(sizeof(long) *  num_blocks * zmax);
-    //memset max index array to zero
-    memset(max_index_array, 0, sizeof(long) * num_blocks * zmax);
-
+    cache_optimised_candidate* candidates = (cache_optimised_candidate*) malloc(sizeof(cache_optimised_candidate) *  num_blocks * zmax);
+    //memset cache_optimised_candidates to zero
+    memset(candidates, 0, sizeof(cache_optimised_candidate) * num_blocks * zmax);
+    
 
     // begin timer for boxcar filtering
     double start = omp_get_wtime();
@@ -397,17 +416,18 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         }
 
         float local_max_power = -INFINITY;
-        long local_max_index = 0;
+        int local_max_index = 0;
 
         // periodicity search the sum array
         for (int i = 0; i < block_width; i++){
             if (sum_array[i] > local_max_power) {
                 local_max_power = sum_array[i];
-                local_max_index = i;
+                local_max_index = i + block_index*block_width;
             }
         }
-        max_array[block_index*zmax] = local_max_power;
-        max_index_array[block_index*zmax] = local_max_index + block_index*block_width;
+
+        candidates[block_index*zmax].power = local_max_power;
+        candidates[block_index*zmax].index = local_max_index;
 
         for (int z = 1; z < zmax; z++){
             // boxcar filter
@@ -421,11 +441,11 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
                 for (int i = 0; i < block_width; i++){
                     if (sum_array[i] > local_max_power) {
                         local_max_power = sum_array[i];
-                        local_max_index = i;
+                        local_max_index = i + block_index*block_width;
                     }
                 }
-                max_array[block_index*zmax + z] = local_max_power;
-                max_index_array[block_index*zmax + z] = local_max_index + block_index*block_width;
+                candidates[num_blocks*z + block_index].power = local_max_power;
+                candidates[num_blocks*z + block_index].index = local_max_index;
             }
         }
     }
@@ -436,27 +456,79 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     double time_spent = end - start;
     printf("\tCalculating and searching the filters took %f seconds\n", time_spent);
 
-
-    // begin timer for writing output file
     start = omp_get_wtime();
-    // write out max_array to text file
-    for (int i = 0; i < num_blocks; i++){
-        for (int z = 0; z < zmax; z++){
-            if (z % z_step == 0){
-                fprintf(text_candidates_file, "%f,%f,%ld,%d\n", 
-                    candidate_sigma(max_array[i*zmax + z]*0.5, z, num_independent_trials),
-                    max_array[i*zmax + z],
-                    max_index_array[i*zmax + z],
-                    z);
+
+    cache_optimised_candidate* final_output_candidates = (cache_optimised_candidate*) malloc(sizeof(cache_optimised_candidate) *  candidates_per_boxcar * zmax);
+
+    float temp_sigma;
+    // extract candidates_per_boxcar candidates from max_array
+    #pragma omp parallel
+    for (int z = 0; z < zmax; z++){
+        cache_optimised_candidate* local_candidates = (cache_optimised_candidate*) malloc(sizeof(cache_optimised_candidate) *  num_blocks);
+        if (z % z_step == 0){
+            // extract the row from candidates using memcpy
+            memcpy(local_candidates, candidates + z*num_blocks, sizeof(cache_optimised_candidate) * num_blocks);
+
+            // sort the row by descending .power values using qsort
+            qsort(local_candidates, num_blocks, sizeof(cache_optimised_candidate), compare_cache_optimised_candidates_power);
+
+            // write the top candidates_per_boxcar candidates to final_output_candidates, if they are above the sigma threshold
+            for (int i = 0; i < candidates_per_boxcar; i++){
+                temp_sigma = candidate_sigma(local_candidates[i].power*0.5, z, num_independent_trials);
+                if (temp_sigma > sigma_threshold){
+                    final_output_candidates[z*candidates_per_boxcar + i].sigma = temp_sigma;
+                    final_output_candidates[z*candidates_per_boxcar + i].power = local_candidates[i].power;
+                    final_output_candidates[z*candidates_per_boxcar + i].index = local_candidates[i].index;
+                    final_output_candidates[z*candidates_per_boxcar + i].z = z;
+                }
             }
         }
     }
-    fclose(text_candidates_file);
-    free(base_name);
-    free(max_array);
+
+    // sort final_output_candidates by descending sigma using qsort
+    qsort(final_output_candidates, candidates_per_boxcar * zmax, sizeof(cache_optimised_candidate), compare_cache_optimised_candidates_sigma);
+
+    // dump final_output_candidates to binary file
+    char binary_filename[255];
+    snprintf(binary_filename, 255, "%s.cand", base_name);
+    FILE *binary_candidates_file = fopen(binary_filename, "wb"); // open the file for writing. Make sure you have write access in this directory.
+    if (binary_candidates_file == NULL) {
+        printf("Could not open file for writing binary results.\n");
+        return;
+    }
+    fwrite(final_output_candidates, sizeof(cache_optimised_candidate), candidates_per_boxcar * zmax, binary_candidates_file);
+    fclose(binary_candidates_file);
+
+    float temp_period_ms;
+    float temp_frequency;
+    float temp_fdot;
+    float temp_acceleration;
+    // write final_output_candidates to text file with physical measurements
+    for (int i = 0; i < candidates_per_boxcar * zmax; i++){
+        if (final_output_candidates[i].sigma > sigma_threshold){
+            temp_period_ms = period_ms_from_frequency(frequency_from_observation_time_seconds(observation_time_seconds,final_output_candidates[i].index));
+            temp_frequency = frequency_from_observation_time_seconds(observation_time_seconds,final_output_candidates[i].index);
+            temp_fdot = fdot_from_boxcar_width(final_output_candidates[i].z, observation_time_seconds);
+            temp_acceleration = acceleration_from_fdot(fdot_from_boxcar_width(final_output_candidates[i].z, observation_time_seconds), frequency_from_observation_time_seconds(observation_time_seconds,final_output_candidates[i].index));
+            fprintf(text_candidates_file, "%lf, \t%f, \t%f, \t%f, \t%ld, \t%f, \t%d, \t%f\n", 
+                final_output_candidates[i].sigma,
+                final_output_candidates[i].power,
+                temp_period_ms,
+                temp_frequency,
+                final_output_candidates[i].index,
+                temp_fdot,
+                final_output_candidates[i].z,
+                temp_acceleration);
+        }
+    }
+
     end = omp_get_wtime();
     time_spent = end - start;
     printf("\tWriting output file took %f seconds\n", time_spent);
+
+    fclose(text_candidates_file);
+    free(base_name);
+
 }
 
 
@@ -474,7 +546,7 @@ int main(int argc, char *argv[]) {
         printf("\t-zmax [int]\tThe max boxcar width (default = 1200, max = the size of your input data)\n");
         printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be = zmax * candidates\n");
         printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
-        printf("\t-sigma [float]\tThe sigma threshold (default = 0.0), candidates with sigma below this value will not be written to the output files\n");
+        printf("\t-sigma [float]\tThe sigma threshold (default = 1.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-zstep [int]\tThe step size in z (default = 2).\n");
         printf("\t-cache_optimised\tUse the faster cache optimised version of the algorithm (default = false)\n");
         printf("\t-block_width\t The block width to use for the cache optimised version of the algorithm (default = 10000)\n");
@@ -523,8 +595,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Get the sigma threshold value from the command line arguments
-    // If not provided, default to 0.0
-    float sigma_threshold = 0.0f;
+    // If not provided, default to 1.0
+    float sigma_threshold = 1.0f;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-sigma") == 0 && i+1 < argc) {
             sigma_threshold = atof(argv[i+1]);
