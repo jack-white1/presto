@@ -119,6 +119,8 @@ void normalize_block(float* block, size_t block_size) {
 }
 
 float* compute_magnitude_block_normalization_mad(const char *filepath, int *magnitude_size) {
+    // begin timer for reading input file
+    double start = omp_get_wtime();
     size_t block_size = 32768; // needs to be much larger than max boxcar width
 
     //printf("Reading file: %s\n", filepath);
@@ -159,6 +161,12 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
         free(data);
         return NULL;
     }
+
+    double end = omp_get_wtime();
+    double time_spent = end - start;
+    printf("Reading the data took      %f seconds (single-threaded)\n", time_spent);
+
+    start = omp_get_wtime();
 
     #pragma omp parallel for
     // Perform block normalization
@@ -201,6 +209,10 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
     free(data);
 
     *magnitude_size = (int) size;
+
+    end = omp_get_wtime();
+    time_spent = end - start;
+    printf("Normalizing the data took  %f seconds (multi-threaded)\n", time_spent);
     return magnitude;
 }
 
@@ -246,33 +258,32 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     double start = omp_get_wtime();
 
     #pragma omp parallel for
-    for (int block_index = 0; block_index < num_blocks; block_index++){
-        float* lookup_array = (float*) malloc(sizeof(float) *  (block_width + zmax));
-        float* sum_array = (float*) malloc(sizeof(float) *  block_width);
+    for (int block_index = 0; block_index < num_blocks; block_index++) {
+        float* lookup_array = (float*) malloc(sizeof(float) * (block_width + zmax));
+        float* sum_array = (float*) malloc(sizeof(float) * block_width);
 
         // memset lookup array and sum array to zero
-        memset(lookup_array, 0.0, sizeof(float) * (block_width + zmax));
+        memset(lookup_array, 0, sizeof(float) * (block_width + zmax));
+        memset(sum_array, 0, sizeof(float) * block_width);
 
         // initialise lookup array
-        for (int i = 0; i < block_width + zmax; i++){
-            if (i + block_index*block_width < valid_length){
-                lookup_array[i] = magnitudes_array[i + block_index*block_width];
-            }
+        int num_to_copy = block_width + zmax;
+        if (block_index * block_width + num_to_copy > valid_length) {
+            num_to_copy = valid_length - block_index * block_width;
         }
+        memcpy(lookup_array, magnitudes_array + block_index * block_width, sizeof(float) * num_to_copy);
 
         // initialise sum array
-        for (int i = 0; i < block_width; i++){
-            sum_array[i] = lookup_array[i];
-        }
+        memcpy(sum_array, lookup_array, sizeof(float) * block_width);
 
         float local_max_power = -INFINITY;
-        int local_max_index = 0;
+        long local_max_index = 0;
 
         // periodicity search the sum array
         for (int i = 0; i < block_width; i++){
             if (sum_array[i] > local_max_power) {
                 local_max_power = sum_array[i];
-                local_max_index = i + block_index*block_width;
+                local_max_index = (long)i + (long)block_index*(long)block_width;
             }
         }
 
@@ -291,7 +302,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
                 for (int i = 0; i < block_width; i++){
                     if (sum_array[i] > local_max_power) {
                         local_max_power = sum_array[i];
-                        local_max_index = i + block_index*block_width;
+                        local_max_index = (long)i + (long)block_index*(long)block_width;
                     }
                 }
                 candidates[num_blocks*z + block_index].power = local_max_power;
@@ -304,7 +315,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     double end = omp_get_wtime();
 
     double time_spent = end - start;
-    printf("Searching the data took  %f seconds\n", time_spent);
+    printf("Searching the data took    %f seconds (multi-threaded)\n", time_spent);
 
     start = omp_get_wtime();
 
@@ -372,12 +383,16 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 
     end = omp_get_wtime();
     time_spent = end - start;
-    printf("Producing output took    %f seconds\n", time_spent);
+    printf("Producing output took      %f seconds (single-threaded)\n", time_spent);
 
     fclose(text_candidates_file);
     free(base_name);
+    free(candidates);
+    free(final_output_candidates);
 
 }
+
+
 
 
 
@@ -470,8 +485,7 @@ int main(int argc, char *argv[]) {
 
     omp_set_num_threads(num_threads);
 
-    // begin timer for reading input file
-    double start = omp_get_wtime();
+
     int magnitude_array_size;
     float* magnitudes = compute_magnitude_block_normalization_mad(argv[1], &magnitude_array_size);
 
@@ -479,9 +493,7 @@ int main(int argc, char *argv[]) {
         printf("Failed to compute magnitudes.\n");
         return 1;
     }
-    double end = omp_get_wtime();
-    double time_spent = end - start;
-    printf("Preparing data took      %f seconds\n", time_spent);
+
 
     recursive_boxcar_filter_cache_optimised(magnitudes, 
             magnitude_array_size, 
@@ -498,6 +510,6 @@ int main(int argc, char *argv[]) {
     // end overall program timer
     double end_program = omp_get_wtime();
     double time_spent_program = end_program - start_program;
-    printf("------------------------------------------\nTotal time spent was     " GREEN "%f seconds" RESET "\n", time_spent_program);
+    printf("--------------------------------------------\nTotal time spent was       " GREEN "%f seconds" RESET "\n", time_spent_program);
     return 0;
 }
