@@ -305,7 +305,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
             }
 
             // find max
-            double max_start_time = omp_get_wtime();
+            //double max_start_time = omp_get_wtime();
             if (z % z_step == 0){
                 local_max_power = -INFINITY;
                 local_max_index = 0;
@@ -318,8 +318,8 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
                 candidates[num_blocks*z + block_index].power = local_max_power;
                 candidates[num_blocks*z + block_index].index = local_max_index;
             }
-            double max_end_time = omp_get_wtime();
-            printf("Max took %f seconds\n", max_end_time - max_start_time);
+            //double max_end_time = omp_get_wtime();
+            //printf("Max took %f seconds\n", max_end_time - max_start_time);
 
             
 
