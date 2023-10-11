@@ -298,6 +298,9 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         candidates[block_index*zmax].z = 0;
         
         for (int z = 1; z < zmax; z++){
+
+            /*
+
             // boxcar filter
             for (int i = 0; i < block_width; i++){
                 sum_array[i] += lookup_array[i + z];
@@ -320,12 +323,20 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
             double max_end_time = omp_get_wtime();
             printf("Max took %f seconds\n", max_end_time - max_start_time);
 
-            //find max and its index using AVX
-            max_start_time = omp_get_wtime();
+            */
+
+           // boxcar filter using AVX
+           const int elements_per_reg = 8;  // AVX register has 8 float elements
+
+            for (int i = 0; i < block_width; i+=elements_per_reg){
+                _mm256_storeu_ps(&lookup_array[i], _mm256_loadu_ps(&lookup_array[i + z + 8]));
+            }
+
+            //find max and its index using AVX2
             if (z % z_step == 0){
                 __m256 maxValVec = _mm256_set1_ps(-INFINITY);
                 __m256i maxIdxVec = _mm256_setzero_si256(); // Initialized to 0
-                const int elements_per_reg = 8;  // AVX register has 8 float elements
+                
 
                 for (int i = 0; i < block_width; i += elements_per_reg){
                     __m256 data = _mm256_loadu_ps(&sum_array[i]);
@@ -354,32 +365,6 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
                 candidates[num_blocks*z + block_index].power = local_max_power;
                 candidates[num_blocks*z + block_index].index = local_max_index;
             }
-            max_end_time = omp_get_wtime();
-            printf("Max AVX took %f seconds\n", max_end_time - max_start_time);
-
-            // find max using AVX
-            /*
-            if (z % z_step == 0){
-                __m256 maxValVec = _mm256_set1_ps(-INFINITY);
-                for (int i = 0; i < block_width; i += 8){
-                    maxValVec = _mm256_max_ps(maxValVec, _mm256_loadu_ps(&sum_array[i]));
-                }
-
-                float result[8];
-                _mm256_storeu_ps(result, maxValVec);
-
-                local_max_power = result[0];
-                for (int i = 1; i < 8; i++) {
-                    if (result[i] > local_max_power) {
-                        local_max_power = result[i];
-                        local_max_index = i;
-                    }
-                }
-                local_max_index += (long)block_index*(long)block_width;
-
-                candidates[num_blocks*z + block_index].power = local_max_power;
-                candidates[num_blocks*z + block_index].index = local_max_index;
-            }*/
         }
     }
 
