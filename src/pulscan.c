@@ -14,8 +14,8 @@
 #include <time.h>
 #include <omp.h>
 #include "accel.h"
-#include <immintrin.h> // for AVX
-#include <avx2intrin.h> // for AVX2
+//#include <immintrin.h> // for AVX
+//#include <avx2intrin.h> // for AVX2
 
 
 #define SPEED_OF_LIGHT 299792458.0
@@ -299,8 +299,6 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         
         for (int z = 1; z < zmax; z++){
 
-            /*
-
             // boxcar filter
             for (int i = 0; i < block_width; i++){
                 sum_array[i] += lookup_array[i + z];
@@ -323,10 +321,11 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
             double max_end_time = omp_get_wtime();
             printf("Max took %f seconds\n", max_end_time - max_start_time);
 
-            */
+            
 
-           // boxcar filter using AVX
-           const int elements_per_reg = 8;  // AVX register has 8 float elements
+            // boxcar filter using AVX
+            /*
+            const int elements_per_reg = 8;  // AVX register has 8 float elements
 
             for (int i = 0; i < block_width; i+=elements_per_reg){
                 _mm256_storeu_ps(&lookup_array[i], _mm256_loadu_ps(&lookup_array[i + z + 8]));
@@ -365,6 +364,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
                 candidates[num_blocks*z + block_index].power = local_max_power;
                 candidates[num_blocks*z + block_index].index = local_max_index;
             }
+            */
         }
     }
 
