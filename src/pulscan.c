@@ -167,7 +167,7 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
 
     double end = omp_get_wtime();
     double time_spent = end - start;
-    printf("Reading the data took      %f seconds (single-threaded)\n", time_spent);
+    printf("Reading the data took      %f seconds using 1 thread\n", time_spent);
 
     start = omp_get_wtime();
 
@@ -215,7 +215,7 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
 
     end = omp_get_wtime();
     time_spent = end - start;
-    printf("Normalizing the data took  %f seconds (%d threads)\n", time_spent, ncpus);
+    printf("Normalizing the data took  %f seconds using %d thread(s)\n", time_spent, ncpus);
     return magnitude;
 }
 
@@ -369,7 +369,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     double end = omp_get_wtime();
 
     double time_spent = end - start;
-    printf("Searching the data took    %f seconds (%d threads)\n", time_spent, ncpus);
+    printf("Searching the data took    %f seconds using %d thread(s)\n", time_spent, ncpus);
 
     start = omp_get_wtime();
 
@@ -437,7 +437,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 
     end = omp_get_wtime();
     time_spent = end - start;
-    printf("Producing output took      %f seconds (single-threaded)\n", time_spent);
+    printf("Producing output took      %f seconds using 1 thread\n", time_spent);
 
     fclose(text_candidates_file);
     free(base_name);
@@ -452,10 +452,10 @@ const char* pulscan_frame =
 "      .   .       .      .   +.         + . +        .\n"
 "         +            .       .  +   .          .   +    .\n"
 "   .      .      .  +     +  .    *   .     .      .   .\n"
-"   __________ .     ______    .         +        .    .\n"
-" +  ____  __ \\___  ____  /__________________*_______  *\n"
-"   * __  /_/ /  / / /_  /__  ___/  ___/  __ \`/_  __ \\   +\n"
-"     _  ____// /_/ /_  / _(__  )/ /__ / /_/ /_  / / /   .\n"
+"   __________ .       ____    .         +    .   .    .\n"
+" +  ____  __ \\___  __ _  /__________________ _______  *\n"
+".  * __  /_/ /  / / / / /__  ___/  ___/  __ \`/_  __ \\   +\n"
+"     _  ____// /_/ / / /  (__  )/ /__ / /_/ / / / / /   .\n"
 " .   /_/     \\__,_/ /_/  /____/ \\___/ \\__,_/ /_/ /_/\n"
 "    *    +     .     .     .   +   .     +   .      *   +\n"
 "  .         +    .   *   .     +    * .     .      .   .\n"
@@ -580,6 +580,11 @@ int main(int argc, char *argv[]) {
     // end overall program timer
     double end_program = omp_get_wtime();
     double time_spent_program = end_program - start_program;
-    printf("--------------------------------------------\nTotal time spent was       " GREEN "%f seconds" RESET "\n", time_spent_program);
+    printf("--------------------------------------------\nTotal time spent was       " GREEN "%f seconds" RESET "\n\n\n", time_spent_program);
+
+    //data written to file
+    printf("Data written to file: %s.bctxtcand (text format) and %s.bccand (binary format)\n", argv[1], argv[1]);
+
+
     return 0;
 }
