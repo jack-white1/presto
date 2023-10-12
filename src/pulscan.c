@@ -471,15 +471,15 @@ int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("USAGE: %s file [-ncpus int] [-zmax int] [-candidates int] [-tobs float] [-sigma float] [-zstep int] [-block_width int]\n", argv[0]);
         printf("Required arguments:\n");
-        printf("\tfile [string]\tThe input file path (.fft file output of PRESTO realfft)\n");
+        printf("\tfile [string]\t\tThe input file path (.fft file format like the output of PRESTO realfft)\n");
         printf("Optional arguments:\n");
-        printf("\t-ncpus [int]\tThe number of OpenMP threads to use (default 1)\n");
-        printf("\t-zmax [int]\tThe max boxcar width (default = 200, max = the size of your input data)\n");
-        printf("\t-candidates [int]\tThe number of candidates per boxcar (default = 10), total candidates in output will be < zmax * candidates\n");
-        printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
-        printf("\t-sigma [float]\tThe sigma threshold (default = 1.0), candidates with sigma below this value will not be written to the output files\n");
-        printf("\t-zstep [int]\tThe step size in z (default = 2).\n");
-        printf("\t-block_width\t The block width to use for the cache optimised version of the search algorithm (default = 40000)\n");
+        printf("\t-ncpus [int]\t\tThe number of OpenMP threads to use (default 1)\n");
+        printf("\t-zmax [int]\t\tThe max boxcar width (default = 200, max = the size of your input data)\n");
+        printf("\t-candidates [int]\tThe max number of candidates per boxcar (default = 10), total candidates in output will be less than or equal to [-zmax] * [-candidates]\n");
+        printf("\t-tobs [float]\t\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
+        printf("\t-sigma [float]\t\tThe sigma threshold (default = 1.0), candidates with sigma below this value will not be written to the output files\n");
+        printf("\t-zstep [int]\t\tThe step size in z (default = 2).\n");
+        printf("\t-block_width\t\tThe block width to use for the cache optimised version of the search algorithm (default = 32768)\n");
         return 1;
     }
 
@@ -543,8 +543,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Get the block width from the command line arguments
-    // If not provided, default to 10000
-    int block_width = 40000;
+    // If not provided, default to 32768
+    int block_width = 32768;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-block_width") == 0 && i+1 < argc) {
             block_width = atoi(argv[i+1]);
