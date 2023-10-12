@@ -299,15 +299,14 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         
         for (int z = 1; z < zmax; z++){
 
+            
             /*
-
             // boxcar filter
             for (int i = 0; i < block_width; i++){
                 sum_array[i] += lookup_array[i + z];
             }
 
             // find max
-            double max_start_time = omp_get_wtime();
             if (z % z_step == 0){
                 local_max_power = -INFINITY;
                 local_max_index = 0;
@@ -320,12 +319,13 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
                 candidates[num_blocks*z + block_index].power = local_max_power;
                 candidates[num_blocks*z + block_index].index = local_max_index;
             }
-            double max_end_time = omp_get_wtime();
-            printf("Max took %f seconds\n", max_end_time - max_start_time);
-
             */
 
+            
+
            // boxcar filter using AVX
+
+           
            const int elements_per_reg = 8;  // AVX register has 8 float elements
 
             for (int i = 0; i < block_width; i+=elements_per_reg){
@@ -450,7 +450,21 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 }
 
 
-
+const char* pulscan_frame = 
+"\n.        *     .     .             .   .   .     .\n"
+"      .   .       .      .   +.         + . +        .\n"
+"         +            .       .  +   .          .   +    .\n"
+"   .      .      .  +     +  .    *   .     .      .   .\n"
+"   __________ .     ______    .         +        .    .\n"
+" +  ____  __ \\___  ____  /__________________*_______  *\n"
+"   * __  /_/ /  / / /_  /__  ___/  ___/  __ \`/_  __ \\   +\n"
+"     _  ____// /_/ /_  / _(__  )/ /__ / /_/ /_  / / /   .\n"
+" .   /_/     \\__,_/ /_/  /____/ \\___/ \\__,_/ /_/ /_/\n"
+"    *    +     .     .     .   +   .     +   .      *   +\n"
+"  .         +    .   *   .     +    * .     .      .   .\n"
+" .    +       .  .        .    .   *     .     +   .      .\n"
+"   .     *     .    *    .    +   .      .      .       .\n"
+"J. White, K. Adámek, J. Roy, S. Ransom, W. Armour  2023\n\n";
 
 
 int main(int argc, char *argv[]) {
@@ -458,7 +472,8 @@ int main(int argc, char *argv[]) {
     double start_program = omp_get_wtime();
 
     if (argc < 2) {
-        printf("USAGE: %s file [-ncpus int] [-zmax int] [-candidates int] [-tobs float] [-sigma float] [-zstep int] [-cache_optimised] [-block_width int]\n", argv[0]);
+        printf("%s\n", pulscan_frame);
+        printf("USAGE: %s file [-ncpus int] [-zmax int] [-candidates int] [-tobs float] [-sigma float] [-zstep int] [-block_width int]\n", argv[0]);
         printf("Required arguments:\n");
         printf("\tfile [string]\tThe input file path (.fft file output of PRESTO realfft)\n");
         printf("Optional arguments:\n");
@@ -468,7 +483,7 @@ int main(int argc, char *argv[]) {
         printf("\t-tobs [float]\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
         printf("\t-sigma [float]\tThe sigma threshold (default = 1.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-zstep [int]\tThe step size in z (default = 2).\n");
-        printf("\t-block_width\t The block width to use for the cache optimised version of the algorithm (default = 40000)\n");
+        printf("\t-block_width\t The block width to use for the cache optimised version of the search algorithm (default = 40000)\n");
         return 1;
     }
 
