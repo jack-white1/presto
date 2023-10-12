@@ -299,7 +299,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         
         for (int z = 1; z < zmax; z++){
 
-            /*
+            
 
             // boxcar filter
             for (int i = 0; i < block_width; i++){
@@ -307,7 +307,6 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
             }
 
             // find max
-            double max_start_time = omp_get_wtime();
             if (z % z_step == 0){
                 local_max_power = -INFINITY;
                 local_max_index = 0;
@@ -320,13 +319,10 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
                 candidates[num_blocks*z + block_index].power = local_max_power;
                 candidates[num_blocks*z + block_index].index = local_max_index;
             }
-            double max_end_time = omp_get_wtime();
-            printf("Max took %f seconds\n", max_end_time - max_start_time);
-
-            */
-
-           // boxcar filter using AVX
-           const int elements_per_reg = 8;  // AVX register has 8 float elements
+            
+            /*
+            // boxcar filter using AVX
+            const int elements_per_reg = 8;  // AVX register has 8 float elements
 
             for (int i = 0; i < block_width; i+=elements_per_reg){
                 _mm256_storeu_ps(&lookup_array[i], _mm256_loadu_ps(&lookup_array[i + z + 8]));
