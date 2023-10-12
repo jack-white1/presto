@@ -30,6 +30,8 @@
 #define MAGENTA "\033[35m"
 #define CYAN    "\033[36m"
 #define WHITE   "\033[37m"
+#define FLASHING   "\033[5m"
+#define BOLD   "\033[1m"
 
 
 typedef struct {
@@ -448,22 +450,15 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 
 
 const char* pulscan_frame = 
-"\n         *     .     .             .   .   .     .\n"
-"      .   .       .      .   +.         + . +        .\n"
-"         +            .       .  +   .          .   +    .\n"
-"   .      .      .  +     +  .    *   .     .      .   .\n"
-"     .     *     .    *    .    +   .      .      .       .\n"
-"         "BLUE"___________        __"RESET" .  .   *  .   .  .  .\n"            
-"    . *   "BLUE"_____  __ \\__  __/ /_____________ _____"RESET" .  *    .\n"
-"  +    .   "BLUE"___  /_/ / / / / / ___/ ___/ __ `/ __ \\"RESET"     + .\n"
-" .          "BLUE"_  ____/ /_/ / (__  ) /__/ /_/ / / / /"RESET" .  *     . \n"
-"       .    "BLUE"/_/    \\__,_/_/____/\\___/\\__,_/_/ /_/"RESET"    \n"                         
-"    *    +     .     .     .   +   .     +   .      *   +\n"
-"  .         +    .   *   .     +    * .     .      .   .\n"
-"      +       .  .        .    .   *     .     +   .      .\n"
-"         *     .    *    .    +   .      .      .       .\n\n"
+"    .          .     .     *        .   .   .     .\n"
+"         "BOLD"___________      . __"RESET" .  .   *  .   .  .  .     .\n"            
+"    . *   "BOLD"_____  __ \\__+ __/ /_____________ _____"RESET" .    "FLASHING"*"RESET"  .\n"
+"  +    .   "BOLD"___  /_/ / / / / / ___/ ___/ __ `/ __ \\"RESET"     + .\n"
+" .          "BOLD"_  ____/ /_/ / (__  ) /__/ /_/ / / / /"RESET" .  *     . \n"
+"       .    "BOLD"/_/ *  \\__,_/_/____/\\___/\\__,_/_/ /_/"RESET"    \n"                         
+"    *    +     .     .     . +     .     +   .      *   +\n"
 
-"   J. White, K. Adámek, J. Roy, S. Ransom, W. Armour  2023\n\n";
+"  J. White, K. Adámek, J. Roy, S. Ransom, W. Armour  2023\n\n";
 
 
 
@@ -471,9 +466,9 @@ const char* pulscan_frame =
 int main(int argc, char *argv[]) {
     // start overall program timer
     double start_program = omp_get_wtime();
+    printf("%s\n", pulscan_frame);
 
     if (argc < 2) {
-        printf("%s\n", pulscan_frame);
         printf("USAGE: %s file [-ncpus int] [-zmax int] [-candidates int] [-tobs float] [-sigma float] [-zstep int] [-block_width int]\n", argv[0]);
         printf("Required arguments:\n");
         printf("\tfile [string]\tThe input file path (.fft file output of PRESTO realfft)\n");
