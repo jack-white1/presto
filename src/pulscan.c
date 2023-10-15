@@ -1,11 +1,9 @@
 // Jack White 2023, jack.white@eng.ox.ac.uk
 
 // This program reads in a .fft file produced by PRESTO realfft
-// and computes the boxcar filter candidates for a range of boxcar widths, 1 to zmax (default 1200)
+// and computes the boxcar filter candidates for a range of boxcar widths, 0 to zmax (default 200)
 // The number of candidates per boxcar is set by the user, default 10
 
-// The output is a text/binary file called INPUTFILENAME.bctxtcand (or .bccand for binary) with the following columns:
-// sigma,power,period_ms,frequency,frequency_index,fdot,boxcar_width,acceleration
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,8 +12,6 @@
 #include <time.h>
 #include <omp.h>
 #include "accel.h"
-//#include <immintrin.h> // for AVX
-//#include <avx2intrin.h> // for AVX2
 
 
 #define SPEED_OF_LIGHT 299792458.0
@@ -242,7 +238,6 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     }
     fprintf(text_candidates_file, "sigma, power, period, frequency, rbin, f-dot, z, acceleration\n");
 
-    
     // we want to ignore the DC component, so we start at index 1, by adding 1 to the pointer
     magnitudes_array++;
     magnitudes_array_length--;
@@ -261,7 +256,6 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     //memset cache_optimised_candidates to zero
     memset(candidates, 0, sizeof(cache_optimised_candidate) * num_blocks * zmax);
     
-
     // begin timer for boxcar filtering
     double start = omp_get_wtime();
 
@@ -281,28 +275,14 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         }
         memcpy(lookup_array, magnitudes_array + block_index * block_width, sizeof(float) * num_to_copy);
 
-        // initialise sum array
-        memcpy(sum_array, lookup_array, sizeof(float) * block_width);
+        // memset sum array to 0
+        memset(sum_array, 0, sizeof(float) * block_width);
 
-        float local_max_power = -INFINITY;
-        long local_max_index = 0;
 
-        // periodicity search the sum array
-        for (int i = 0; i < block_width; i++){
-            if (sum_array[i] > local_max_power) {
-                local_max_power = sum_array[i];
-                local_max_index = (long)i + (long)block_index*(long)block_width;
-            }
-        }
-
-        candidates[block_index*zmax].power = local_max_power;
-        candidates[block_index*zmax].index = local_max_index;
-        candidates[block_index*zmax].z = 0;
+        float local_max_power;
+        long local_max_index;
         
-        for (int z = 1; z < zmax; z++){
-
-            
-
+        for (int z = 0; z < zmax; z++){
             // boxcar filter
             for (int i = 0; i < block_width; i++){
                 sum_array[i] += lookup_array[i + z];
@@ -321,49 +301,6 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
                 candidates[num_blocks*z + block_index].power = local_max_power;
                 candidates[num_blocks*z + block_index].index = local_max_index;
             }
-            
-            /*
-            // boxcar filter using AVX
-            const int elements_per_reg = 8;  // AVX register has 8 float elements
-
-            for (int i = 0; i < block_width; i+=elements_per_reg){
-                _mm256_storeu_ps(&lookup_array[i], _mm256_loadu_ps(&lookup_array[i + z + 8]));
-            }
-
-            //find max and its index using AVX2
-            if (z % z_step == 0){
-                __m256 maxValVec = _mm256_set1_ps(-INFINITY);
-                __m256i maxIdxVec = _mm256_setzero_si256(); // Initialized to 0
-                
-
-                for (int i = 0; i < block_width; i += elements_per_reg){
-                    __m256 data = _mm256_loadu_ps(&sum_array[i]);
-                    __m256 mask = _mm256_cmp_ps(data, maxValVec, _CMP_GT_OQ);
-                    maxValVec = _mm256_max_ps(maxValVec, data);
-
-                    __m256i idx = _mm256_set_epi32(i+7, i+6, i+5, i+4, i+3, i+2, i+1, i);
-                    __m256i masked_idx = _mm256_blendv_epi8(maxIdxVec, idx, _mm256_castps_si256(mask));
-                    maxIdxVec = masked_idx;
-                }
-
-                float max_vals[elements_per_reg];
-                int max_indices[elements_per_reg];
-                _mm256_storeu_ps(max_vals, maxValVec);
-                _mm256_storeu_si256((__m256i*)max_indices, maxIdxVec);
-
-                local_max_power = max_vals[0];
-                local_max_index = max_indices[0];
-                for (int i = 1; i < elements_per_reg; i++) {
-                    if (max_vals[i] > local_max_power) {
-                        local_max_power = max_vals[i];
-                        local_max_index = (long)max_indices[i] + (long)block_index*(long)block_width;
-                    }
-                }
-
-                candidates[num_blocks*z + block_index].power = local_max_power;
-                candidates[num_blocks*z + block_index].index = local_max_index;
-            }
-            */
         }
     }
 
@@ -376,6 +313,9 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     start = omp_get_wtime();
 
     cache_optimised_candidate* final_output_candidates = (cache_optimised_candidate*) malloc(sizeof(cache_optimised_candidate) *  candidates_per_boxcar * zmax);
+
+    // memset final_output_candidates to zero
+    memset(final_output_candidates, 0, sizeof(cache_optimised_candidate) * candidates_per_boxcar * zmax);
 
     float temp_sigma;
     // extract candidates_per_boxcar candidates from max_array
@@ -392,10 +332,12 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         for (int i = 0; i < candidates_per_boxcar; i++){
             temp_sigma = candidate_sigma(local_candidates[i].power*0.5, z, num_independent_trials);
             if (temp_sigma > sigma_threshold){
-                final_output_candidates[z*candidates_per_boxcar + i].sigma = temp_sigma;
-                final_output_candidates[z*candidates_per_boxcar + i].power = local_candidates[i].power;
-                final_output_candidates[z*candidates_per_boxcar + i].index = local_candidates[i].index;
-                final_output_candidates[z*candidates_per_boxcar + i].z = z;
+                if (local_candidates[i].index > 0){
+                    final_output_candidates[z*candidates_per_boxcar + i].sigma = temp_sigma;
+                    final_output_candidates[z*candidates_per_boxcar + i].power = local_candidates[i].power;
+                    final_output_candidates[z*candidates_per_boxcar + i].index = local_candidates[i].index;
+                    final_output_candidates[z*candidates_per_boxcar + i].z = z;
+                }      
             }
         }
     }
@@ -461,8 +403,6 @@ const char* pulscan_frame =
 "  J. White, K. Adámek, J. Roy, S. Ransom, W. Armour  2023\n\n";
 
 
-
-
 int main(int argc, char *argv[]) {
     // start overall program timer
     double start_program = omp_get_wtime();
@@ -526,7 +466,7 @@ int main(int argc, char *argv[]) {
 
     // Get the sigma threshold value from the command line arguments
     // If not provided, default to 1.0
-    float sigma_threshold = 0.0f;
+    float sigma_threshold = 1.0f;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-sigma") == 0 && i+1 < argc) {
             sigma_threshold = atof(argv[i+1]);
@@ -582,7 +522,7 @@ int main(int argc, char *argv[]) {
     printf("--------------------------------------------\nTotal time spent was       " GREEN "%f seconds" RESET "\n\n\n", time_spent_program);
 
     //data written to file
-    printf("Data written to file: %s.bctxtcand (text format) and %s.bccand (binary format)\n", argv[1], argv[1]);
+    printf("Data written to .bctxtcand file (text format) and .bccand file (binary format)\n");
 
 
     return 0;
