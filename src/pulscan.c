@@ -390,6 +390,35 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 
 }
 
+void profile_candidate_sigma(){
+    // open csv file for writing
+    FILE *csv_file = fopen("candidate_sigma_profile.csv", "w"); // open the file for writing. Make sure you have write access in this directory.
+    if (csv_file == NULL) {
+        printf("Could not open file for writing candidate sigma profile.\n");
+        return;
+    }
+    fprintf(csv_file, "sigma, power, z, num_independent_trials\n");
+
+    for (int num_independent_trials = 65536; num_independent_trials < 1073741824; num_independent_trials*=2){
+        for (int z = 1; z < 1200; z++){
+            printf("z = %d\n", z);
+            for (double target_sigma = 1.0; target_sigma < 30.0; target_sigma+=1.0){
+                printf("target_sigma = %lf\n", target_sigma);
+                // increase power in steps of 0.1 until output sigma is above target sigma
+                double power = 0.0;
+                double output_sigma = 0.0;
+                while (output_sigma < target_sigma){
+                    power += 0.1;
+                    output_sigma = candidate_sigma(power*0.5, z, num_independent_trials);
+                }
+                fprintf(csv_file, "%lf,%lf,%d,%d\n", output_sigma, power, z, num_independent_trials);
+                printf("z = %d, power = %lf, output_sigma = %lf, num_independent = %d\n", z, power, output_sigma, num_independent_trials);
+            }
+        }
+    }
+    fclose(csv_file);
+}
+
 
 const char* pulscan_frame = 
 "    .          .     .     *        .   .   .     .\n"
@@ -420,6 +449,7 @@ int main(int argc, char *argv[]) {
         printf("\t-sigma [float]\t\tThe sigma threshold (default = 1.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-zstep [int]\t\tThe step size in z (default = 2).\n");
         printf("\t-block_width\t\tThe block width to use for the cache optimised version of the search algorithm (default = 32768)\n");
+        printf("\t-candidate_sigma_profile\t\tProfile the candidate sigma function and write the results to candidate_sigma_profile.csv (you probably don't want to do this, default = 0)\n");
         return 1;
     }
 
@@ -482,6 +512,15 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Get the candidate sigma profile flag from the command line arguments
+    // If not provided, default to 0
+    int candidate_sigma_profile = 0;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-candidate_sigma_profile") == 0 && i+1 < argc) {
+            candidate_sigma_profile = atoi(argv[i+1]);
+        }
+    }
+
     // Get the block width from the command line arguments
     // If not provided, default to 32768
     int block_width = 32768;
@@ -489,6 +528,12 @@ int main(int argc, char *argv[]) {
         if (strcmp(argv[i], "-block_width") == 0 && i+1 < argc) {
             block_width = atoi(argv[i+1]);
         }
+    }
+
+    if (candidate_sigma_profile > 0){
+        profile_candidate_sigma();
+        printf("Candidate sigma profile written to candidate_sigma_profile.csv\n");
+        return 0;
     }
 
     omp_set_num_threads(ncpus);
