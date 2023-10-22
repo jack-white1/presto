@@ -116,7 +116,6 @@ void normalize_block(float* block, size_t block_size) {
             block[i] = (block[i] - median) / mad;
         }
     }
-
 }
 
 float* compute_magnitude_block_normalization_mad(const char *filepath, int *magnitude_size, int ncpus, int max_boxcar_width) {
@@ -229,7 +228,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 
     // Create new filename
     char text_filename[255];
-    snprintf(text_filename, 255, "%s.bctxtcand", base_name);
+    snprintf(text_filename, 255, "%s_ACCEL_%d.bctxtcand", base_name, max_boxcar_width);
 
     FILE *text_candidates_file = fopen(text_filename, "w"); // open the file for writing. Make sure you have write access in this directory.
     if (text_candidates_file == NULL) {
