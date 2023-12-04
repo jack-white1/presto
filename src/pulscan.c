@@ -217,7 +217,7 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
 }
 
 void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnitudes_array_length, \
-                                int max_boxcar_width, const char *filename, int candidates_per_boxcar, \
+                                int max_boxcar_width, const char *filename, //int candidates_per_boxcar, 
                                 float observation_time_seconds, float sigma_threshold, int z_step, \
                                 int block_width, int ncpus) {
 
@@ -250,6 +250,8 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     int zmax = max_boxcar_width;
 
     int num_blocks = (valid_length + block_width - 1) / block_width;
+
+    int candidates_per_boxcar = num_blocks;
 
     cache_optimised_candidate* candidates = (cache_optimised_candidate*) malloc(sizeof(cache_optimised_candidate) *  num_blocks * zmax);
     //memset cache_optimised_candidates to zero
@@ -421,11 +423,11 @@ void profile_candidate_sigma(){
 
 const char* pulscan_frame = 
 "    .          .     .     *        .   .   .     .\n"
-"         "BOLD"___________      . __"RESET" .  .   *  .   .  .  .     .\n"            
+"         "BOLD"___________      . __"RESET" .  .   *  .   .  .  .     .\n"
 "    . *   "BOLD"_____  __ \\__+ __/ /_____________ _____"RESET" .    "FLASHING"*"RESET"  .\n"
 "  +    .   "BOLD"___  /_/ / / / / / ___/ ___/ __ `/ __ \\"RESET"     + .\n"
 " .          "BOLD"_  ____/ /_/ / (__  ) /__/ /_/ / / / /"RESET" .  *     . \n"
-"       .    "BOLD"/_/ *  \\__,_/_/____/\\___/\\__,_/_/ /_/"RESET"    \n"                         
+"       .    "BOLD"/_/ *  \\__,_/_/____/\\___/\\__,_/_/ /_/"RESET"    \n"
 "    *    +     .     .     . +     .     +   .      *   +\n"
 
 "  J. White, K. Adámek, J. Roy, S. Ransom, W. Armour  2023\n\n";
@@ -443,14 +445,16 @@ int main(int argc, char *argv[]) {
         printf("Optional arguments:\n");
         printf("\t-ncpus [int]\t\tThe number of OpenMP threads to use (default 1)\n");
         printf("\t-zmax [int]\t\tThe max boxcar width (default = 200, max = the size of your input data)\n");
-        printf("\t-candidates [int]\tThe max number of candidates per boxcar (default = 10), total candidates in output will be less than or equal to [-zmax] * [-candidates]\n");
+        //printf("\t-candidates [int]\tThe max number of candidates per boxcar (default = 10), total candidates in output will be less than or equal to [-zmax] * [-candidates]\n");
         printf("\t-tobs [float]\t\tThe observation time (default = 0.0), this must be specified if you want accurate frequency/acceleration values\n");
         printf("\t-sigma [float]\t\tThe sigma threshold (default = 1.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-zstep [int]\t\tThe step size in z (default = 2).\n");
-        printf("\t-block_width\t\tThe block width to use for the cache optimised version of the search algorithm (default = 32768)\n");
+        printf("\t-block_width\t\tThe block width (units are r-bins, default = 32768), you will get up to 1 candidate per block per boxcar\n");
         printf("\t-candidate_sigma_profile\t\tProfile the candidate sigma function and write the results to candidate_sigma_profile.csv (you probably don't want to do this, default = 0)\n");
         return 1;
     }
+
+    /*
 
     // Get the number of candidates per boxcar from the command line arguments
     // If not provided, default to 10
@@ -460,6 +464,8 @@ int main(int argc, char *argv[]) {
             candidates_per_boxcar = atoi(argv[i+1]);
         }
     }
+
+    */
 
     // Get the number of OpenMP threads from the command line arguments
     // If not provided, default to 1
@@ -537,7 +543,6 @@ int main(int argc, char *argv[]) {
 
     omp_set_num_threads(ncpus);
 
-
     int magnitude_array_size;
     float* magnitudes = compute_magnitude_block_normalization_mad(argv[1], &magnitude_array_size, ncpus, max_boxcar_width);
 
@@ -546,12 +551,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-
     recursive_boxcar_filter_cache_optimised(magnitudes, 
             magnitude_array_size, 
             max_boxcar_width, 
             argv[1], 
-            candidates_per_boxcar, 
+            //candidates_per_boxcar, 
             observation_time_seconds, 
             sigma_threshold,
             z_step,
@@ -567,7 +571,6 @@ int main(int argc, char *argv[]) {
 
     //data written to file
     printf("Data written to .bctxtcand file (text format) and .bccand file (binary format)\n");
-
 
     return 0;
 }
