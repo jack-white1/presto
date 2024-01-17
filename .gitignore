@@ -65,3 +65,9 @@ dist/
 .mypy_cache/
 .vscode/
 src/unfiltered_timeseries.dat
+bin/plot_modelled_function.py
+bin/fit_chi2.py
+bin/plot_chi2_profile.py
+bin/temp-plot.html
+bin/chi2_logp_profile.csv
+bin/chi2_profile.html

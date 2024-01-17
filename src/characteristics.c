@@ -426,7 +426,34 @@ double log_asymtotic_incomplete_gamma(double a, double z)
     double x = 1.0, newxpart = 1.0, term = 1.0;
     int ii = 1;
 
+    //printf("log_asymtotic_incomplete_gamma() being called with arguments:\n");
+    //printf("   a = %f, z = %f\n", a, z);
+
     while (fabs(newxpart) > 1e-15) {
+        term *= (a - ii);
+        newxpart = term / pow(z, ii);
+        x += newxpart;
+        ii += 1;
+        //printf("ii = %d, x = %f, newxpart = %f\n", ii, x, newxpart);
+    }
+    //printf("Took %d iterations.\n", ii);
+    return (a - 1.0) * log(z) - z + log(x);
+}
+
+double log_asymtotic_incomplete_gamma_fast(double a, double z, int num_iterations)
+/*
+  log_asymtotic_incomplete_gamma(double a, double z):
+      Return the natural log of the incomplete gamma function in
+          its asymtotic limit as z->infty.  This is from Abramowitz
+          and Stegun eqn 6.5.32.
+*/
+{
+    double x = 1.0, newxpart = 1.0, term = 1.0;
+    int ii = 1;
+    printf("log_asymtotic_incomplete_gamma_fast() being called with arguments:\n");
+    printf("   a = %f, z = %f, num_iterations = %d\n", a, z, num_iterations);
+
+    for (int i = 0; i < num_iterations; i++) {
         term *= (a - ii);
         newxpart = term / pow(z, ii);
         x += newxpart;
@@ -443,7 +470,7 @@ double log_asymtotic_gamma(double z)
 */
 {
     double x, y;
-
+    //printf("log_asymtotic_gamma() being called with argument z = %f\n", z);
     x = (z - 0.5) * log(z) - z + 0.91893853320467267;
     y = 1.0 / (z * z);
     x += (((-5.9523809523809529e-4 * y
@@ -492,6 +519,67 @@ double equivalent_gaussian_sigma(double logp)
 
 
 double chi2_logp(double chi2, double dof)
+/* MODIFIED FOR PULSCAN TO CLOSE INVALID REGION AT HIGH DOF */
+/* Return the natural log probability corresponding to a chi^2 value */
+/* of chi2 given dof degrees of freedom. */
+{
+    double logp;
+    //printf("chi2 = %f, dof = %f\n", chi2, dof);
+
+    if (chi2 <= 0.0) {
+        return -INFINITY;
+    }
+    //printf("chi2/dof = %f\n", chi2/dof);
+    // COMMENT OUT NEXT LINE IS THE MODIFICATION
+    //if (chi2 / dof > 15.0 || (dof > 150 && chi2 / dof > 6.0)) {
+    if (chi2 / dof > 1.0) {
+        //printf("chi2/dof > 1.0\n");
+        // printf("Using asymtotic expansion...\n");
+        // Use some asymtotic expansions for the chi^2 distribution
+        //   this is eqn 26.4.19 of A & S
+        logp = log_asymtotic_incomplete_gamma(0.5 * dof, 0.5 * chi2) -
+            log_asymtotic_gamma(0.5 * dof);
+    } else {
+        //printf("chi2/dof <= 1.0\n");
+        int which, status;
+        double p, q, bound, df = dof, x = chi2;
+
+        which = 1;
+        status = 0;
+        // Determine the basic probability
+        cdfchi(&which, &p, &q, &x, &df, &status, &bound);
+        if (status) {
+            printf("\nError in cdfchi() (chi2_logp()):\n");
+            printf("   status = %d, bound = %g\n", status, bound);
+            printf("   p = %g, q = %g, x = %g, df = %g\n\n", p, q, x, df);
+            exit(1);
+        }
+        // printf("p = %.3g  q = %.3g\n", p, q);
+        logp = log(q);
+    }
+    return logp;
+}
+
+double chi2_logp_fast(double chi2, double dof)
+/* Return the natural log probability corresponding to a chi^2 value */
+/* of chi2 given dof degrees of freedom. */
+{
+    double logp;
+
+    if (chi2 <= dof) {
+        return INFINITY;
+    }
+
+    //if (chi2 / dof > 15.0 || (dof > 150 && chi2 / dof > 6.0)) {
+        // printf("Using asymtotic expansion...\n");
+        // Use some asymtotic expansions for the chi^2 distribution
+        //   this is eqn 26.4.19 of A & S
+        logp = log_asymtotic_incomplete_gamma_fast(0.5 * dof, 0.5 * chi2, 100) -
+            log_asymtotic_gamma(0.5 * dof);
+    return logp;
+}
+
+double chi2_logp_old(double chi2, double dof)
 /* Return the natural log probability corresponding to a chi^2 value */
 /* of chi2 given dof degrees of freedom. */
 {
@@ -501,8 +589,8 @@ double chi2_logp(double chi2, double dof)
         return -INFINITY;
     }
 
-    //if (chi2 / dof > 15.0 || (dof > 150 && chi2 / dof > 6.0)) {
-    if (chi2 / dof > 1.0 ) {
+    if (chi2 / dof > 15.0 || (dof > 150 && chi2 / dof > 6.0)) {
+    //if (chi2 / dof > 1.0 ) {
         // printf("Using asymtotic expansion...\n");
         // Use some asymtotic expansions for the chi^2 distribution
         //   this is eqn 26.4.19 of A & S
@@ -559,6 +647,7 @@ double candidate_sigma(double power, int numsum, double numtrials)
     if (power <= 0.0) {
         return 0.0;
     }
+
     // Get the natural log probability
     chi2 = 2.0 * power;
     dof = 2.0 * numsum;
