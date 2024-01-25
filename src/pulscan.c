@@ -158,6 +158,7 @@ void normalize_block_quickselect(float* block, size_t block_size) {
 
     // Compute the median using the new function
     float median = median_function(sorted_block, block_size);
+    //printf("Median: %f\n", median);
 
     // Compute the MAD
     for (size_t i = 0; i < block_size; i++) {
@@ -166,6 +167,7 @@ void normalize_block_quickselect(float* block, size_t block_size) {
 
     // Re-compute the median of the deviations to get the MAD
     float mad = median_function(sorted_block, block_size);
+    //printf("MAD: %f\n", mad);
 
     // Free the allocated memory
     free(sorted_block);
@@ -386,7 +388,7 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
 
     // Create new filename
     char text_filename[255];
-    snprintf(text_filename, 255, "%s_ACCEL_%d.bctxtcand", base_name, max_boxcar_width);
+    snprintf(text_filename, 255, "%s_ACCEL_%d_NUMHARM_%d.bctxtcand", base_name, max_boxcar_width,nharmonics);
 
     FILE *text_candidates_file = fopen(text_filename, "w"); // open the file for writing. Make sure you have write access in this directory.
     if (text_candidates_file == NULL) {
@@ -742,7 +744,7 @@ int main(int argc, char *argv[]) {
         printf("Optional arguments:\n");
         printf("\t-ncpus [int]\t\tThe number of OpenMP threads to use (default 1)\n");
         printf("\t-zmax [int]\t\tThe max boxcar width (default = 200, analagous to zmax in accelsearch)\n");
-        printf("\t-nharmonics [int]\t\tThe number of harmonics to sum (default = 1, options are 1, 2, 4 or 8)\n");
+        printf("\t-numharm [int]\t\tThe number of harmonics to sum (default = 1, options are 1, 2, 4 or 8)\n");
         printf("\t-tobs [float]\t\tThe observation time (default = 0.0), this must be specified if you want physically accurate frequency/acceleration values\n");
         printf("\t-sigma [float]\t\tThe sigma threshold (default = 1.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-zstep [int]\t\tThe step size in z (default = 2).\n");
@@ -788,7 +790,7 @@ int main(int argc, char *argv[]) {
     // If not provided, default to 1
     int nharmonics = 1;
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "-nharmonics") == 0 && i+1 < argc) {
+        if (strcmp(argv[i], "-numharm") == 0 && i+1 < argc) {
             nharmonics = atoi(argv[i+1]);
         }
     }
