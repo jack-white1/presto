@@ -614,15 +614,15 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     qsort(final_output_candidates, candidates_per_boxcar * zmax, sizeof(cache_optimised_candidate), compare_cache_optimised_candidates_sigma);
 
     // dump final_output_candidates to binary file
-    char binary_filename[255];
-    snprintf(binary_filename, 255, "%s.bccand", base_name);
-    FILE *binary_candidates_file = fopen(binary_filename, "wb"); // open the file for writing. Make sure you have write access in this directory.
-    if (binary_candidates_file == NULL) {
-        printf("Could not open file for writing binary results.\n");
-        return;
-    }
-    fwrite(final_output_candidates, sizeof(cache_optimised_candidate), candidates_per_boxcar * zmax, binary_candidates_file);
-    fclose(binary_candidates_file);
+    //char binary_filename[255];
+    //snprintf(binary_filename, 255, "%s.bccand", base_name);
+    //FILE *binary_candidates_file = fopen(binary_filename, "wb"); // open the file for writing. Make sure you have write access in this directory.
+    //if (binary_candidates_file == NULL) {
+    //    printf("Could not open file for writing binary results.\n");
+    //    return;
+    //}
+    //fwrite(final_output_candidates, sizeof(cache_optimised_candidate), candidates_per_boxcar * zmax, binary_candidates_file);
+    //fclose(binary_candidates_file);
 
     float temp_period_ms;
     float temp_frequency;
