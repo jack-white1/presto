@@ -13,7 +13,6 @@
 #include <omp.h>
 #include "accel.h"
 
-
 #define SPEED_OF_LIGHT 299792458.0
 
 // ANSI Color Codes
@@ -28,7 +27,6 @@
 #define WHITE   "\033[37m"
 #define FLASHING   "\033[5m"
 #define BOLD   "\033[1m"
-
 
 typedef struct {
     double sigma;
@@ -333,53 +331,31 @@ float* compute_magnitude_block_normalization_mad(const char *filepath, int *magn
 
 void decimate_array_2(float* input_array, float* output_array, int input_array_length){
     for (int i = 0; i < input_array_length/2; i++){
-        output_array[i] = fmax(input_array[2*i], input_array[2*i+1]);
+        output_array[i] = input_array[2*i] + input_array[2*i+1];
     }
 }
 
 void decimate_array_3(float* input_array, float* output_array, int input_array_length){
     for (int i = 0; i < input_array_length/3; i++){
-        output_array[i] = fmax(fmax(input_array[3*i], input_array[3*i+1]), input_array[3*i+2]);
+        output_array[i] = input_array[3*i] + input_array[3*i+1] + input_array[3*i+2];
     }
 }
 
 // could reimplement this using a call of decimate array 2 on the array already decimated by 2
 void decimate_array_4(float* input_array, float* output_array, int input_array_length){
     for (int i = 0; i < input_array_length/4; i++){
-        output_array[i] = fmax(fmax(fmax(input_array[4*i], input_array[4*i+1]), input_array[4*i+2]), input_array[4*i+3]);
+        output_array[i] = input_array[4*i] + input_array[4*i+1] + input_array[4*i+2] + input_array[4*i+3];
     }
 }
 
-void decimate_array_5(float* input_array, float* output_array, int input_array_length){
-    for (int i = 0; i < input_array_length/5; i++){
-        output_array[i] = fmax(fmax(fmax(fmax(input_array[5*i], input_array[5*i+1]), input_array[5*i+2]), input_array[5*i+3]), input_array[5*i+4]);
-    }
-}
-
-// could reimplement this using a call of decimate array 2 on the array already decimated by 3
-void decimate_array_6(float* input_array, float* output_array, int input_array_length){
-    for (int i = 0; i < input_array_length/6; i++){
-        output_array[i] = fmax(fmax(fmax(fmax(fmax(input_array[6*i], input_array[6*i+1]), input_array[6*i+2]), input_array[6*i+3]), input_array[6*i+4]), input_array[6*i+5]);
-    }
-}
-
-void decimate_array_7(float* input_array, float* output_array, int input_array_length){
-    for (int i = 0; i < input_array_length/7; i++){
-        output_array[i] = fmax(fmax(fmax(fmax(fmax(fmax(input_array[7*i], input_array[7*i+1]), input_array[7*i+2]), input_array[7*i+3]), input_array[7*i+4]), input_array[7*i+5]), input_array[7*i+6]);
-    }
-}
-
-// could reimplement this using a call of decimate array 2 on the array already decimated by 4
-void decimate_array_8(float* input_array, float* output_array, int input_array_length){
-    for (int i = 0; i < input_array_length/8; i++){
-        output_array[i] = fmax(fmax(fmax(fmax(fmax(fmax(fmax(input_array[8*i], input_array[8*i+1]), input_array[8*i+2]), input_array[8*i+3]), input_array[8*i+4]), input_array[8*i+5]), input_array[8*i+6]), input_array[8*i+7]);
-    }
-}
-
-void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnitudes_array_length, \
+void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int magnitudes_array_length, \
                                 int max_boxcar_width, const char *filename, 
                                 float observation_time_seconds, float sigma_threshold, int z_step, \
                                 int block_width, int ncpus, int nharmonics) {
+
+    // make a copy of the input magnitudes array
+    float* magnitudes_array = malloc(sizeof(float) * magnitudes_array_length);
+    memcpy(magnitudes_array, input_magnitudes_array, sizeof(float) * magnitudes_array_length);
 
     // Extract file name without extension
     char *base_name = strdup(filename);
@@ -401,7 +377,8 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     double start_decimation = omp_get_wtime();
 
     float* magnitudes_array_decimated_sum;
-    
+
+    printf("--------------------------------------------\n");
     if (nharmonics == 1){
         //do nothing
     } else if (nharmonics == 2){
@@ -422,8 +399,32 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         // end timer for decimation step
         double end_decimation = omp_get_wtime();
         double time_spent_decimation = end_decimation - start_decimation;
-        printf("Decimating the data took   %f seconds using 1 thread\n", time_spent_decimation);
+        printf("Decimation (2x) took       %f seconds using 1 thread\n", time_spent_decimation);
 
+    } else if (nharmonics == 3){
+        magnitudes_array_decimated_sum = (float*) malloc(sizeof(float) * magnitudes_array_length/3);
+        
+        // make a copy of the magnitudes array, decimated by a factor of 2
+        float* magnitudes_array_decimated_2 = (float*) malloc(sizeof(float) * magnitudes_array_length/2);
+        decimate_array_2(magnitudes_array, magnitudes_array_decimated_2, magnitudes_array_length);
+
+        // make a copy of the magnitudes array, decimated by a factor of 3
+        float* magnitudes_array_decimated_3 = (float*) malloc(sizeof(float) * magnitudes_array_length/3);
+        decimate_array_3(magnitudes_array, magnitudes_array_decimated_3, magnitudes_array_length);
+
+        // sum the first magnitudes_array_length/3 elements of the original + decimated arrays into a new array
+        
+        for (int i = 0; i < magnitudes_array_length/3; i++){
+            magnitudes_array_decimated_sum[i] = magnitudes_array[i] + magnitudes_array_decimated_2[i] + magnitudes_array_decimated_3[i];
+        }
+
+        magnitudes_array = magnitudes_array_decimated_sum;
+        magnitudes_array_length /= 3;
+
+        // end timer for decimation step
+        double end_decimation = omp_get_wtime();
+        double time_spent_decimation = end_decimation - start_decimation;
+        printf("Decimation (3x) took       %f seconds using 1 thread\n", time_spent_decimation);
     } else if (nharmonics == 4){
         magnitudes_array_decimated_sum = (float*) malloc(sizeof(float) * magnitudes_array_length/4);
         
@@ -451,57 +452,11 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         // end timer for decimation step
         double end_decimation = omp_get_wtime();
         double time_spent_decimation = end_decimation - start_decimation;
-        printf("Decimating the data took   %f seconds using 1 thread\n", time_spent_decimation);
-
-    } else if (nharmonics == 8){
-        magnitudes_array_decimated_sum = (float*) malloc(sizeof(float) * magnitudes_array_length/8);
-
-        // make a copy of the magnitudes array, decimated by a factor of 2
-        float* magnitudes_array_decimated_2 = (float*) malloc(sizeof(float) * magnitudes_array_length/2);
-        decimate_array_2(magnitudes_array, magnitudes_array_decimated_2, magnitudes_array_length);
-
-        // make a copy of the magnitudes array, decimated by a factor of 3
-        float* magnitudes_array_decimated_3 = (float*) malloc(sizeof(float) * magnitudes_array_length/3);
-        decimate_array_3(magnitudes_array, magnitudes_array_decimated_3, magnitudes_array_length);
-
-        // make a copy of the magnitudes array, decimated by a factor of 4
-        float* magnitudes_array_decimated_4 = (float*) malloc(sizeof(float) * magnitudes_array_length/4);
-        decimate_array_4(magnitudes_array, magnitudes_array_decimated_4, magnitudes_array_length);
-
-        // make a copy of the magnitudes array, decimated by a factor of 5
-        float* magnitudes_array_decimated_5 = (float*) malloc(sizeof(float) * magnitudes_array_length/5);
-        decimate_array_5(magnitudes_array, magnitudes_array_decimated_5, magnitudes_array_length);
-
-        // make a copy of the magnitudes array, decimated by a factor of 6
-        float* magnitudes_array_decimated_6 = (float*) malloc(sizeof(float) * magnitudes_array_length/6);
-        decimate_array_6(magnitudes_array, magnitudes_array_decimated_6, magnitudes_array_length);
-
-        // make a copy of the magnitudes array, decimated by a factor of 7
-        float* magnitudes_array_decimated_7 = (float*) malloc(sizeof(float) * magnitudes_array_length/7);
-        decimate_array_7(magnitudes_array, magnitudes_array_decimated_7, magnitudes_array_length);
-
-        // make a copy of the magnitudes array, decimated by a factor of 8
-        float* magnitudes_array_decimated_8 = (float*) malloc(sizeof(float) * magnitudes_array_length/8);
-        decimate_array_8(magnitudes_array, magnitudes_array_decimated_8, magnitudes_array_length);
-
-        // sum the first magnitudes_array_length/8 elements of the original + decimated arrays into a new array
-        for (int i = 0; i < magnitudes_array_length/8; i++){
-            magnitudes_array_decimated_sum[i] = magnitudes_array[i] + magnitudes_array_decimated_2[i] + magnitudes_array_decimated_3[i] + magnitudes_array_decimated_4[i] + magnitudes_array_decimated_5[i] + magnitudes_array_decimated_6[i] + magnitudes_array_decimated_7[i] + magnitudes_array_decimated_8[i];
-        }
-
-        magnitudes_array = magnitudes_array_decimated_sum;
-        magnitudes_array_length /= 8;
-
-        // end timer for decimation step
-        double end_decimation = omp_get_wtime();
-        double time_spent_decimation = end_decimation - start_decimation;
-        printf("Decimating the data took   %f seconds using 1 thread\n", time_spent_decimation);
-
+        printf("Decimation (4x) took       %f seconds using 1 thread\n", time_spent_decimation);
     } else {
-        printf("ERROR: nharmonics must be 1, 2, 4 or 8\n");
+        printf("ERROR: nharmonics must be 1, 2, 3 or 4\n");
         return;
     }
-
 
     // we want to ignore the DC component, so we start at index 1, by adding 1 to the pointer
     magnitudes_array++;
@@ -585,6 +540,18 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
     memset(final_output_candidates, 0, sizeof(cache_optimised_candidate) * candidates_per_boxcar * zmax);
 
     float temp_sigma;
+    int degrees_of_freedom;
+
+    if (nharmonics == 1){
+        degrees_of_freedom  = 1;
+    } else if (nharmonics == 2){
+        degrees_of_freedom  = 3;
+    } else if (nharmonics == 3){
+        degrees_of_freedom  = 6;
+    } else if (nharmonics == 4){
+        degrees_of_freedom  = 10;
+    }
+
     // extract candidates_per_boxcar candidates from max_array
     //#pragma omp parallel
     for (int z = 0; z < zmax; z+=z_step){
@@ -598,7 +565,13 @@ void recursive_boxcar_filter_cache_optimised(float* magnitudes_array, int magnit
         // write the top candidates_per_boxcar candidates to final_output_candidates, if they are above the sigma threshold
         for (int i = 0; i < candidates_per_boxcar; i++){
             ////temp_sigma = candidate_sigma(local_candidates[i].power*0.5, z, num_independent_trials);
-            temp_sigma = candidate_sigma(local_candidates[i].power*0.5, z*nharmonics, num_independent_trials);
+            //temp_sigma = candidate_sigma(local_candidates[i].power*0.5, z*nharmonics, num_independent_trials);
+            temp_sigma = candidate_sigma(local_candidates[i].power*0.5, z*degrees_of_freedom, num_independent_trials);
+            //printf("local_candidates[i].power = %f\n", local_candidates[i].power);
+            //printf("z = %d\n", z);
+            //printf("nharmonics = %d\n", nharmonics);
+            //printf("num_independent_trials = %f\n", num_independent_trials);
+            //printf("temp_sigma = %f\n", temp_sigma);
             if (temp_sigma > sigma_threshold){
                 if (local_candidates[i].index > 0){
                     final_output_candidates[z*candidates_per_boxcar + i].sigma = temp_sigma;
@@ -740,17 +713,17 @@ int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("USAGE: %s file [-ncpus int] [-zmax int] [-candidates int] [-tobs float] [-sigma float] [-zstep int] [-block_width int]\n", argv[0]);
         printf("Required arguments:\n");
-        printf("\tfile [string]\t\tThe input file path (.fft file format like the output of PRESTO realfft)\n");
+        printf("\tfile [string]\t\tThe input file path (.fft file format like the output of realfft)\n");
         printf("Optional arguments:\n");
         printf("\t-ncpus [int]\t\tThe number of OpenMP threads to use (default 1)\n");
-        printf("\t-zmax [int]\t\tThe max boxcar width (default = 200, analagous to zmax in accelsearch)\n");
-        printf("\t-numharm [int]\t\tThe number of harmonics to sum (default = 1, options are 1, 2, 4 or 8)\n");
-        printf("\t-tobs [float]\t\tThe observation time (default = 0.0), this must be specified if you want physically accurate frequency/acceleration values\n");
-        printf("\t-sigma [float]\t\tThe sigma threshold (default = 1.0), candidates with sigma below this value will not be written to the output files\n");
+        printf("\t-zmax [int]\t\tThe max boxcar width (default = 200, similar meaning to zmax in accelsearch)\n");
+        printf("\t-numharm [int]\t\tThe maximum number of harmonics to sum (default = 1, options are 1, 2, 3 or 4)\n");
+        printf("\t-tobs [float]\t\tThe observation time in seconds, this must be specified if you want physical frequency/acceleration values\n");
+        printf("\t-sigma [float]\t\tThe sigma threshold (default = 2.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-zstep [int]\t\tThe step size in z (default = 2).\n");
-        printf("\t-block_width\t\tThe block width (units are r-bins, default = 32768), you will get up to 1 candidate per block per boxcar width\n");
-        printf("\t-candidate_sigma_profile\t\tProfile the candidate sigma function and write the results to candidate_sigma_profile.csv (you probably don't want to do this, default = 0)\n");
-        printf("\t-profile_chi2_logp\t\tProfile the chi2_logp function and write the results to chi2_logp_profile.csv (you probably don't want to do this, default = 0)\n");
+        printf("\t-block_width\t\tThe block width (units are r-bins, default = 32768), you will get up to ( rmax * zmax ) / ( block_width * zstep ) candidates\n");
+        //printf("\t-candidate_sigma_profile\t\tProfile the candidate sigma function and write the results to candidate_sigma_profile.csv (you probably don't want to do this, default = 0)\n");
+        //printf("\t-profile_chi2_logp\t\tProfile the chi2_logp function and write the results to chi2_logp_profile.csv (you probably don't want to do this, default = 0)\n");
         return 1;
     }
 
@@ -782,8 +755,8 @@ int main(int argc, char *argv[]) {
     }
 
     if (observation_time_seconds == 0.0f) {
-        printf("WARNING: No observation time provided, frequency and acceleration values will be inaccurate.\n");
-        printf("[Optional] Please specify an observation time with the -tobs flag, e.g. -tobs 600.0\n");
+        printf(RED FLASHING "WARNING" RESET ": No observation time provided, frequency and acceleration values will be inaccurate.\n");
+        printf("[Optional] Please specify an observation time with the -tobs flag, e.g. -tobs 600.0\n\n");
     }
 
     // Get the number of harmonics to sum from the command line arguments
@@ -796,8 +769,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Get the sigma threshold value from the command line arguments
-    // If not provided, default to 1.0
-    float sigma_threshold = 1.0f;
+    // If not provided, default to 2.0
+    float sigma_threshold = 2.0f;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-sigma") == 0 && i+1 < argc) {
             sigma_threshold = atof(argv[i+1]);
@@ -862,7 +835,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    recursive_boxcar_filter_cache_optimised(magnitudes, 
+    for (int harmonic = 1; harmonic < nharmonics+1; harmonic++){
+        recursive_boxcar_filter_cache_optimised(magnitudes, 
             magnitude_array_size, 
             max_boxcar_width, 
             argv[1],
@@ -871,7 +845,8 @@ int main(int argc, char *argv[]) {
             z_step,
             block_width,
             ncpus,
-            nharmonics);
+            harmonic);
+    }
 
     free(magnitudes);
 
@@ -880,8 +855,8 @@ int main(int argc, char *argv[]) {
     double time_spent_program = end_program - start_program;
     printf("--------------------------------------------\nTotal time spent was       " GREEN "%f seconds" RESET "\n\n\n", time_spent_program);
 
-    //data written to file
-    printf("Data written to .bctxtcand file (text format) and .bccand file (binary format)\n");
+    //printf("Data written to .bctxtcand file (text format) and .bccand file (binary format)\n");
+    printf("Data written to .bctxtcand file (text format)\n");
 
     return 0;
 }
