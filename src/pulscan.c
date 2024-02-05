@@ -864,7 +864,7 @@ int main(int argc, char *argv[]) {
         printf("\t-turbo_mode [int]\t"BOLD ITALIC RED"T"GREEN"U"YELLOW"R"BLUE"B"MAGENTA"O"RESET" mode (default off = 0, options are 0, 1, 2)\n");
         printf("\t\t\t\t  -turbo_mode 0: Localise candidates to their exact r-bin (frequency location)\n");
         printf("\t\t\t\t  -turbo_mode 1: Only localise candidates to their chunk of the frequency spectrum. This will only give the r-bin to within -block_width accuracy\n");
-        printf("\t\t\t\t  -turbo_mode 2: Option 1 and fix zstep at 2. THIS WILL OVERRIDE THE -zstep FLAG\n\n");
+        printf("\t\t\t\t  -turbo_mode 2: Option 1 and fix -zstep at 2. THIS WILL OVERRIDE THE -zstep FLAG. Automatically enabled if -turbo_mode 1 and -zstep is left alone\n\n");
         //printf("\t-candidate_sigma_profile\t\tProfile the candidate sigma function and write the results to candidate_sigma_profile.csv (you probably don't want to do this, default = 0)\n");
         //printf("\t-profile_chi2_logp\t\tProfile the chi2_logp function and write the results to chi2_logp_profile.csv (you probably don't want to do this, default = 0)\n");
         return 1;
