@@ -27,6 +27,7 @@
 #define WHITE   "\033[37m"
 #define FLASHING   "\033[5m"
 #define BOLD   "\033[1m"
+#define ITALIC   "\033[3m"
 
 typedef struct {
     double sigma;
@@ -351,7 +352,7 @@ void decimate_array_4(float* input_array, float* output_array, int input_array_l
 void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int magnitudes_array_length, \
                                 int max_boxcar_width, const char *filename, 
                                 float observation_time_seconds, float sigma_threshold, int z_step, \
-                                int block_width, int ncpus, int nharmonics) {
+                                int block_width, int ncpus, int nharmonics, int turbo_mode) {
 
     // make a copy of the input magnitudes array
     float* magnitudes_array = malloc(sizeof(float) * magnitudes_array_length);
@@ -481,50 +482,188 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
     // begin timer for boxcar filtering
     double start = omp_get_wtime();
 
-    #pragma omp parallel for
-    for (int block_index = 0; block_index < num_blocks; block_index++) {
-        float* lookup_array = (float*) malloc(sizeof(float) * (block_width + zmax));
-        float* sum_array = (float*) malloc(sizeof(float) * block_width);
+    double start_mem, end_mem, start_boxcar, end_boxcar, start_max, end_max;
+    double boxcar_total_time = 0.0;
+    double max_total_time = 0.0;
+    double mem_total_time = 0.0;
 
-        // memset lookup array and sum array to zero
-        memset(lookup_array, 0, sizeof(float) * (block_width + zmax));
-        memset(sum_array, 0, sizeof(float) * block_width);
+    if (turbo_mode == 0){
+        #pragma omp parallel for
+        for (int block_index = 0; block_index < num_blocks; block_index++) {
+            start_mem = omp_get_wtime();
+            float* lookup_array = (float*) malloc(sizeof(float) * (block_width + zmax));
+            float* sum_array = (float*) malloc(sizeof(float) * block_width);
 
-        // initialise lookup array
-        int num_to_copy = block_width + zmax;
-        if (block_index * block_width + num_to_copy > valid_length) {
-            num_to_copy = valid_length - block_index * block_width;
-        }
-        memcpy(lookup_array, magnitudes_array + block_index * block_width, sizeof(float) * num_to_copy);
+            // memset lookup array and sum array to zero
+            memset(lookup_array, 0, sizeof(float) * (block_width + zmax));
+            memset(sum_array, 0, sizeof(float) * block_width);
 
-        // memset sum array to 0
-        memset(sum_array, 0, sizeof(float) * block_width);
-
-
-        float local_max_power;
-        long local_max_index;
-        
-        for (int z = 0; z < zmax; z++){
-            // boxcar filter
-            for (int i = 0; i < block_width; i++){
-                sum_array[i] += lookup_array[i + z];
+            // initialise lookup array
+            int num_to_copy = block_width + zmax;
+            if (block_index * block_width + num_to_copy > valid_length) {
+                num_to_copy = valid_length - block_index * block_width;
             }
+            memcpy(lookup_array, magnitudes_array + block_index * block_width, sizeof(float) * num_to_copy);
 
-            // find max
-            if (z % z_step == 0){
+            // memset sum array to 0
+            memset(sum_array, 0, sizeof(float) * block_width);
+
+
+            float local_max_power;
+            int local_max_index;
+            end_mem = omp_get_wtime();
+            mem_total_time += end_mem - start_mem;
+
+            for (int z = 0; z < zmax; z++){
+                // start boxcar filter timer
+                start_boxcar = omp_get_wtime();
+
+                // boxcar filter
+                for (int i = 0; i < block_width; i++){
+                    sum_array[i] += lookup_array[i + z];
+                }
+
+                // end boxcar filter timer
+                end_boxcar = omp_get_wtime();
+                boxcar_total_time += end_boxcar - start_boxcar;
+
+                // start max timer
+                start_max = omp_get_wtime();
+
+                // find max
+                if (z % z_step == 0){
+                    local_max_power = -INFINITY;
+                    local_max_index = 0;
+                    for (int i = 0; i < block_width; i++){
+                        if (sum_array[i] > local_max_power) {
+                            local_max_power = sum_array[i];
+                            local_max_index = i; // commenting out this line speeds this section up by 10x
+                        }
+                    }
+                    candidates[num_blocks*z + block_index].power = local_max_power;
+                    candidates[num_blocks*z + block_index].index = local_max_index + block_index*block_width;
+                }
+
+                end_max = omp_get_wtime();
+                max_total_time += end_max - start_max;
+                
+            }
+        }
+    } else if (turbo_mode == 1){
+        #pragma omp parallel for
+        for (int block_index = 0; block_index < num_blocks; block_index++) {
+            start_mem = omp_get_wtime();
+            float* lookup_array = (float*) malloc(sizeof(float) * (block_width + zmax));
+            float* sum_array = (float*) malloc(sizeof(float) * block_width);
+
+            // memset lookup array and sum array to zero
+            memset(lookup_array, 0, sizeof(float) * (block_width + zmax));
+            memset(sum_array, 0, sizeof(float) * block_width);
+
+            // initialise lookup array
+            int num_to_copy = block_width + zmax;
+            if (block_index * block_width + num_to_copy > valid_length) {
+                num_to_copy = valid_length - block_index * block_width;
+            }
+            memcpy(lookup_array, magnitudes_array + block_index * block_width, sizeof(float) * num_to_copy);
+
+            // memset sum array to 0
+            memset(sum_array, 0, sizeof(float) * block_width);
+
+
+            float local_max_power;
+            int local_max_index;
+            end_mem = omp_get_wtime();
+            mem_total_time += end_mem - start_mem;
+
+            for (int z = 0; z < zmax; z++){
+                // start boxcar filter timer
+                start_boxcar = omp_get_wtime();
+
+                // boxcar filter
+                for (int i = 0; i < block_width; i++){
+                    sum_array[i] += lookup_array[i + z];
+                }
+
+                // end boxcar filter timer
+                end_boxcar = omp_get_wtime();
+                boxcar_total_time += end_boxcar - start_boxcar;
+
+                // start max timer
+                start_max = omp_get_wtime();
+
+                // find max
+                if (z % z_step == 0){
+                    local_max_power = -INFINITY;
+                    local_max_index = 0;
+                    for (int i = 0; i < block_width; i++){
+                        if (sum_array[i] > local_max_power) {
+                            local_max_power = sum_array[i];
+                            //local_max_index = i; // commenting out this line speeds this section up by 10x
+                        }
+                    }
+                    candidates[num_blocks*z + block_index].power = local_max_power;
+                    //candidates[num_blocks*z + block_index].index = local_max_index + block_index*block_width;
+                    candidates[num_blocks*z + block_index].index = block_index*block_width + block_width/2;
+                }
+
+                end_max = omp_get_wtime();
+                max_total_time += end_max - start_max;
+                
+            }
+        }
+    } else if (turbo_mode == 2){
+        #pragma omp parallel for
+        for (int block_index = 0; block_index < num_blocks; block_index++) {
+            start_mem = omp_get_wtime();
+            float* lookup_array = (float*) malloc(sizeof(float) * (block_width + zmax));
+            float* sum_array = (float*) malloc(sizeof(float) * block_width);
+
+            // memset lookup array and sum array to zero
+            memset(lookup_array, 0, sizeof(float) * (block_width + zmax));
+            memset(sum_array, 0, sizeof(float) * block_width);
+
+            // initialise lookup array
+            int num_to_copy = block_width + zmax;
+            if (block_index * block_width + num_to_copy > valid_length) {
+                num_to_copy = valid_length - block_index * block_width;
+            }
+            memcpy(lookup_array, magnitudes_array + block_index * block_width, sizeof(float) * num_to_copy);
+
+            // memset sum array to 0
+            memset(sum_array, 0, sizeof(float) * block_width);
+
+            float local_max_power;
+            int local_max_index;
+            end_mem = omp_get_wtime();
+            mem_total_time += end_mem - start_mem;
+
+            for (int z = 0; z < zmax; z+=2){
+                // start boxcar filter timer
+                start_boxcar = omp_get_wtime();
+
                 local_max_power = -INFINITY;
                 local_max_index = 0;
+                // boxcar filter
                 for (int i = 0; i < block_width; i++){
+                    sum_array[i] += lookup_array[i + z] + lookup_array[i + z + 1];
                     if (sum_array[i] > local_max_power) {
                         local_max_power = sum_array[i];
-                        local_max_index = (long)i + (long)block_index*(long)block_width;
+                        //local_max_index = i; 
                     }
                 }
+
                 candidates[num_blocks*z + block_index].power = local_max_power;
-                candidates[num_blocks*z + block_index].index = local_max_index;
+                candidates[num_blocks*z + block_index].index = local_max_index + block_index*block_width;
             }
         }
     }
+
+    /*
+    printf("boxcar_total_time = %lf\n", boxcar_total_time);
+    printf("max_total_time = %lf\n", max_total_time);
+    printf("mem_total_time = %lf\n", mem_total_time);
+    */
 
     // end timer for boxcar filtering
     double end = omp_get_wtime();
@@ -711,7 +850,7 @@ int main(int argc, char *argv[]) {
     printf("%s\n", pulscan_frame);
 
     if (argc < 2) {
-        printf("USAGE: %s file [-ncpus int] [-zmax int] [-candidates int] [-tobs float] [-sigma float] [-zstep int] [-block_width int]\n", argv[0]);
+        printf("USAGE: %s file [-ncpus int] [-zmax int] [-numharm int] [-tobs float] [-sigma float] [-zstep int] [-block_width int] [-turbo_mode]\n", argv[0]);
         printf("Required arguments:\n");
         printf("\tfile [string]\t\tThe input file path (.fft file format like the output of realfft)\n");
         printf("Optional arguments:\n");
@@ -721,10 +860,23 @@ int main(int argc, char *argv[]) {
         printf("\t-tobs [float]\t\tThe observation time in seconds, this must be specified if you want physical frequency/acceleration values\n");
         printf("\t-sigma [float]\t\tThe sigma threshold (default = 2.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-zstep [int]\t\tThe step size in z (default = 2).\n");
-        printf("\t-block_width\t\tThe block width (units are r-bins, default = 32768), you will get up to ( rmax * zmax ) / ( block_width * zstep ) candidates\n");
+        printf("\t-block_width [int]\tThe block width (units are r-bins, default = 32768), you will get up to ( rmax * zmax ) / ( block_width * zstep ) candidates\n");
+        printf("\t-turbo_mode [int]\t"BOLD ITALIC RED"T"GREEN"U"YELLOW"R"BLUE"B"MAGENTA"O"RESET" mode (default off = 0, options are 0, 1, 2)\n");
+        printf("\t\t\t\t  -turbo_mode 0: Localise candidates to their exact r-bin (frequency location)\n");
+        printf("\t\t\t\t  -turbo_mode 1: Only localise candidates to their chunk of the frequency spectrum. This will only give the r-bin to within -block_width accuracy\n");
+        printf("\t\t\t\t  -turbo_mode 2: Option 1 and fix zstep at 2. THIS WILL OVERRIDE THE -zstep FLAG\n\n");
         //printf("\t-candidate_sigma_profile\t\tProfile the candidate sigma function and write the results to candidate_sigma_profile.csv (you probably don't want to do this, default = 0)\n");
         //printf("\t-profile_chi2_logp\t\tProfile the chi2_logp function and write the results to chi2_logp_profile.csv (you probably don't want to do this, default = 0)\n");
         return 1;
+    }
+
+    // Get the turbo mode flag from the command line arguments
+    // If not provided, default to 0
+    int turbo_mode = 0;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-turbo_mode") == 0 && i+1 < argc) {
+            turbo_mode = atoi(argv[i+1]);
+        }
     }
 
     // Get the number of OpenMP threads from the command line arguments
@@ -813,6 +965,11 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    if ((turbo_mode == 1) && (z_step == 2)){
+        turbo_mode = 2;
+        printf(GREEN"Automatically enabled turbo mode 2 as turbo mode = 1 and zstep = 2\n\n"RESET);
+    }
+
     if (candidate_sigma_profile > 0){
         profile_candidate_sigma();
         printf("Candidate sigma profile written to candidate_sigma_profile.csv\n");
@@ -845,7 +1002,8 @@ int main(int argc, char *argv[]) {
             z_step,
             block_width,
             ncpus,
-            harmonic);
+            harmonic,
+            turbo_mode);
     }
 
     free(magnitudes);
