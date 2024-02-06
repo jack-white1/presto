@@ -379,7 +379,7 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
 
     float* magnitudes_array_decimated_sum;
 
-    printf("--------------------------------------------\n");
+    printf("------------- Beginning Search -------------\n");
     if (nharmonics == 1){
         //do nothing
     } else if (nharmonics == 2){
@@ -850,7 +850,7 @@ int main(int argc, char *argv[]) {
     printf("%s\n", pulscan_frame);
 
     if (argc < 2) {
-        printf("USAGE: %s file [-ncpus int] [-zmax int] [-numharm int] [-tobs float] [-sigma float] [-zstep int] [-block_width int] [-turbo_mode]\n", argv[0]);
+        printf("USAGE: %s file [-ncpus int] [-zmax int] [-numharm int] [-tobs float] [-sigma float] [-zstep int] [-block_width int] [-turbo_mode int]\n", argv[0]);
         printf("Required arguments:\n");
         printf("\tfile [string]\t\tThe input file path (.fft file format like the output of realfft)\n");
         printf("Optional arguments:\n");
@@ -861,7 +861,7 @@ int main(int argc, char *argv[]) {
         printf("\t-sigma [float]\t\tThe sigma threshold (default = 2.0), candidates with sigma below this value will not be written to the output files\n");
         printf("\t-zstep [int]\t\tThe step size in z (default = 2).\n");
         printf("\t-block_width [int]\tThe block width (units are r-bins, default = 32768), you will get up to ( rmax * zmax ) / ( block_width * zstep ) candidates\n");
-        printf("\t-turbo_mode [int]\t"BOLD ITALIC RED"T"GREEN"U"YELLOW"R"BLUE"B"MAGENTA"O"RESET" mode (default off = 0, options are 0, 1, 2)\n");
+        printf("\t-turbo_mode [int]\t"BOLD ITALIC RED"T"GREEN"U"YELLOW"R"BLUE"B"MAGENTA"O"RESET" mode - increase speed by trading off frequency localisation accuracy (default off = 0, options are 0, 1, 2)\n");
         printf("\t\t\t\t  -turbo_mode 0: Localise candidates to their exact r-bin (frequency location)\n");
         printf("\t\t\t\t  -turbo_mode 1: Only localise candidates to their chunk of the frequency spectrum. This will only give the r-bin to within -block_width accuracy\n");
         printf("\t\t\t\t  -turbo_mode 2: Option 1 and fix -zstep at 2. THIS WILL OVERRIDE THE -zstep FLAG. Automatically enabled if -turbo_mode 1 and -zstep is left alone\n\n");
