@@ -365,14 +365,19 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
 
     // Create new filename
     char text_filename[255];
-    snprintf(text_filename, 255, "%s_ACCEL_%d_NUMHARM_%d.bctxtcand", base_name, max_boxcar_width,nharmonics);
+    if (turbo_mode == 0){
+        snprintf(text_filename, 255, "%s_ACCEL_%d_NUMHARM_%d.pulscand", base_name, max_boxcar_width,nharmonics);
+    } else {
+        snprintf(text_filename, 255, "%s_ACCEL_%d_NUMHARM_%d_TURBO.pulscand", base_name, max_boxcar_width,nharmonics);
+    }
+    
+    
 
     FILE *text_candidates_file = fopen(text_filename, "w"); // open the file for writing. Make sure you have write access in this directory.
     if (text_candidates_file == NULL) {
         printf("Could not open file for writing text results.\n");
         return;
     }
-    fprintf(text_candidates_file, "sigma, power, period, frequency, rbin, f-dot, z, acceleration\n");
     
     // begin timer for decimation step
     double start_decimation = omp_get_wtime();
@@ -537,7 +542,7 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                     for (int i = 0; i < block_width; i++){
                         if (sum_array[i] > local_max_power) {
                             local_max_power = sum_array[i];
-                            local_max_index = i; // commenting out this line speeds this section up by 10x
+                            local_max_index = i; // commenting out this line speeds this loop up by 10x
                         }
                     }
                     candidates[num_blocks*z + block_index].power = local_max_power;
@@ -599,7 +604,7 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                     for (int i = 0; i < block_width; i++){
                         if (sum_array[i] > local_max_power) {
                             local_max_power = sum_array[i];
-                            //local_max_index = i; // commenting out this line speeds this section up by 10x
+                            //local_max_index = i; // commenting out this line speeds this loop up by 10x
                         }
                     }
                     candidates[num_blocks*z + block_index].power = local_max_power;
@@ -646,17 +651,21 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                 local_max_index = 0;
                 // boxcar filter
                 for (int i = 0; i < block_width; i++){
-                    sum_array[i] += lookup_array[i + z] + lookup_array[i + z + 1];
+                    sum_array[i] += lookup_array[i + z];
                     if (sum_array[i] > local_max_power) {
                         local_max_power = sum_array[i];
                         //local_max_index = i; 
                     }
+                    sum_array[i] += lookup_array[i + z + 1];
                 }
 
                 candidates[num_blocks*z + block_index].power = local_max_power;
                 candidates[num_blocks*z + block_index].index = local_max_index + block_index*block_width;
             }
         }
+    } else if (turbo_mode == 3){
+        printf("ERROR: turbo_mode 3 (logarithmic z-step) not yet implemented\n");
+        return;
     }
 
     /*
@@ -741,13 +750,27 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
     float temp_fdot;
     float temp_acceleration;
     // write final_output_candidates to text file with physical measurements
+    fprintf(text_candidates_file, "%10s %10s %10s %14s %10s %14s %10s %14s\n", 
+        "sigma", "power", "period_ms", "frequency_hz", "rbin", "f-dot", "z", "acceleration");
+    fprintf(text_candidates_file, "%10s %10s %10s %14s %10s %14s %10s %14s\n", 
+        "-----", "-----", "---------", "------------", "----", "-----", "----", "------------");
+
     for (int i = 0; i < candidates_per_boxcar * zmax; i++){
         if (final_output_candidates[i].sigma > sigma_threshold){
             temp_period_ms = period_ms_from_frequency(frequency_from_observation_time_seconds(observation_time_seconds,final_output_candidates[i].index));
             temp_frequency = frequency_from_observation_time_seconds(observation_time_seconds,final_output_candidates[i].index);
             temp_fdot = fdot_from_boxcar_width(final_output_candidates[i].z, observation_time_seconds);
             temp_acceleration = acceleration_from_fdot(fdot_from_boxcar_width(final_output_candidates[i].z, observation_time_seconds), frequency_from_observation_time_seconds(observation_time_seconds,final_output_candidates[i].index));
-            fprintf(text_candidates_file, "%lf,%f,%f,%f,%ld,%f,%d,%f\n", 
+            /*fprintf(text_candidates_file, "%lf,%f,%f,%f,%ld,%f,%d,%f\n", 
+                final_output_candidates[i].sigma,
+                final_output_candidates[i].power,
+                temp_period_ms,
+                temp_frequency,
+                final_output_candidates[i].index,
+                temp_fdot,
+                final_output_candidates[i].z,
+                temp_acceleration);*/
+            fprintf(text_candidates_file, "%10.6lf %10.4f %10.6f %14.6f %10ld %14.8f %10d %14.6f\n", 
                 final_output_candidates[i].sigma,
                 final_output_candidates[i].power,
                 temp_period_ms,
@@ -852,19 +875,21 @@ int main(int argc, char *argv[]) {
     if (argc < 2) {
         printf("USAGE: %s file [-ncpus int] [-zmax int] [-numharm int] [-tobs float] [-sigma float] [-zstep int] [-block_width int] [-turbo_mode int]\n", argv[0]);
         printf("Required arguments:\n");
-        printf("\tfile [string]\t\tThe input file path (.fft file format like the output of realfft)\n");
+        printf("\tfile [string]\t\tThe input file path (.fft file format such as the output of realfft)\n");
         printf("Optional arguments:\n");
         printf("\t-ncpus [int]\t\tThe number of OpenMP threads to use (default 1)\n");
         printf("\t-zmax [int]\t\tThe max boxcar width (default = 200, similar meaning to zmax in accelsearch)\n");
         printf("\t-numharm [int]\t\tThe maximum number of harmonics to sum (default = 1, options are 1, 2, 3 or 4)\n");
-        printf("\t-tobs [float]\t\tThe observation time in seconds, this must be specified if you want physical frequency/acceleration values\n");
-        printf("\t-sigma [float]\t\tThe sigma threshold (default = 2.0), candidates with sigma below this value will not be written to the output files\n");
+        printf("\t-tobs [float]\t\tThe observation time in seconds, this must be specified if you want physical frequency/acceleration values.\n");
+        printf("\t-sigma [float]\t\tThe sigma threshold (default = 2.0), candidates with sigma below this value will not be written to the output file\n");
         printf("\t-zstep [int]\t\tThe step size in z (default = 2).\n");
         printf("\t-block_width [int]\tThe block width (units are r-bins, default = 32768), you will get up to ( rmax * zmax ) / ( block_width * zstep ) candidates\n");
         printf("\t-turbo_mode [int]\t"BOLD ITALIC RED"T"GREEN"U"YELLOW"R"BLUE"B"MAGENTA"O"RESET" mode - increase speed by trading off frequency localisation accuracy (default off = 0, options are 0, 1, 2)\n");
-        printf("\t\t\t\t  -turbo_mode 0: Localise candidates to their exact r-bin (frequency location)\n");
+        printf("\t\t\t\t  -turbo_mode 0: Localise candidates to their exact r-bin frequency location (default setting)\n");
         printf("\t\t\t\t  -turbo_mode 1: Only localise candidates to their chunk of the frequency spectrum. This will only give the r-bin to within -block_width accuracy\n");
-        printf("\t\t\t\t  -turbo_mode 2: Option 1 and fix -zstep at 2. THIS WILL OVERRIDE THE -zstep FLAG. Automatically enabled if -turbo_mode 1 and -zstep is left alone\n\n");
+        printf("\t\t\t\t  -turbo_mode 2: Option 1 and fix -zstep at 2. THIS WILL OVERRIDE THE -zstep FLAG. Automatically enabled if -turbo_mode 1 and -zstep 2\n\n");
+        printf("\t\t\t\t  -turbo_mode 3: (NOT IMPLEMENTED YET) Option 1 and use logarithmically-spaced zsteps. THIS WILL OVERRIDE THE -zstep FLAG. \n\n");
+
         //printf("\t-candidate_sigma_profile\t\tProfile the candidate sigma function and write the results to candidate_sigma_profile.csv (you probably don't want to do this, default = 0)\n");
         //printf("\t-profile_chi2_logp\t\tProfile the chi2_logp function and write the results to chi2_logp_profile.csv (you probably don't want to do this, default = 0)\n");
         return 1;
@@ -1014,7 +1039,7 @@ int main(int argc, char *argv[]) {
     printf("--------------------------------------------\nTotal time spent was       " GREEN "%f seconds" RESET "\n\n\n", time_spent_program);
 
     //printf("Data written to .bctxtcand file (text format) and .bccand file (binary format)\n");
-    printf("Data written to .bctxtcand file (text format)\n");
+    printf("Data written to .pulscand file (text format)\n");
 
     return 0;
 }
