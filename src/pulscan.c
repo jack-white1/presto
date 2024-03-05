@@ -487,15 +487,9 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
     // begin timer for boxcar filtering
     double start = omp_get_wtime();
 
-    double start_mem, end_mem, start_boxcar, end_boxcar, start_max, end_max;
-    double boxcar_total_time = 0.0;
-    double max_total_time = 0.0;
-    double mem_total_time = 0.0;
-
     if (turbomode == 0){
         #pragma omp parallel for
         for (int block_index = 0; block_index < num_blocks; block_index++) {
-            start_mem = omp_get_wtime();
             float* lookup_array = (float*) malloc(sizeof(float) * (blockwidth + zmax));
             float* sum_array = (float*) malloc(sizeof(float) * blockwidth);
 
@@ -516,24 +510,14 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
 
             float local_max_power;
             int local_max_index;
-            end_mem = omp_get_wtime();
-            mem_total_time += end_mem - start_mem;
 
             for (int z = 0; z < zmax; z++){
-                // start boxcar filter timer
-                start_boxcar = omp_get_wtime();
 
                 // boxcar filter
                 for (int i = 0; i < blockwidth; i++){
                     sum_array[i] += lookup_array[i + z];
                 }
 
-                // end boxcar filter timer
-                end_boxcar = omp_get_wtime();
-                boxcar_total_time += end_boxcar - start_boxcar;
-
-                // start max timer
-                start_max = omp_get_wtime();
 
                 // find max
                 if (z % z_step == 0){
@@ -549,15 +533,12 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                     candidates[num_blocks*z + block_index].index = local_max_index + block_index*blockwidth;
                 }
 
-                end_max = omp_get_wtime();
-                max_total_time += end_max - start_max;
                 
             }
         }
     } else if (turbomode == 1){
         #pragma omp parallel for
         for (int block_index = 0; block_index < num_blocks; block_index++) {
-            start_mem = omp_get_wtime();
             float* lookup_array = (float*) malloc(sizeof(float) * (blockwidth + zmax));
             float* sum_array = (float*) malloc(sizeof(float) * blockwidth);
 
@@ -578,24 +559,13 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
 
             float local_max_power;
             int local_max_index;
-            end_mem = omp_get_wtime();
-            mem_total_time += end_mem - start_mem;
 
             for (int z = 0; z < zmax; z++){
-                // start boxcar filter timer
-                start_boxcar = omp_get_wtime();
-
                 // boxcar filter
                 for (int i = 0; i < blockwidth; i++){
                     sum_array[i] += lookup_array[i + z];
                 }
 
-                // end boxcar filter timer
-                end_boxcar = omp_get_wtime();
-                boxcar_total_time += end_boxcar - start_boxcar;
-
-                // start max timer
-                start_max = omp_get_wtime();
 
                 // find max
                 if (z % z_step == 0){
@@ -612,15 +582,12 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                     candidates[num_blocks*z + block_index].index = block_index*blockwidth + blockwidth/2;
                 }
 
-                end_max = omp_get_wtime();
-                max_total_time += end_max - start_max;
                 
             }
         }
     } else if (turbomode == 2){
         #pragma omp parallel for
         for (int block_index = 0; block_index < num_blocks; block_index++) {
-            start_mem = omp_get_wtime();
             float* lookup_array = (float*) malloc(sizeof(float) * (blockwidth + zmax));
             float* sum_array = (float*) malloc(sizeof(float) * blockwidth);
 
@@ -640,12 +607,8 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
 
             float local_max_power;
             int local_max_index;
-            end_mem = omp_get_wtime();
-            mem_total_time += end_mem - start_mem;
 
             for (int z = 0; z < zmax; z+=2){
-                // start boxcar filter timer
-                start_boxcar = omp_get_wtime();
 
                 local_max_power = -INFINITY;
                 local_max_index = 0;
@@ -668,7 +631,6 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
         return;
         /*#pragma omp parallel for
         for (int block_index = 0; block_index < num_blocks; block_index++) {
-            start_mem = omp_get_wtime();
             float* lookup_array = (float*) malloc(sizeof(float) * (blockwidth + zmax));
             float* sum_array = (float*) malloc(sizeof(float) * blockwidth);
 
@@ -689,24 +651,13 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
 
             float local_max_power;
             int local_max_index;
-            end_mem = omp_get_wtime();
-            mem_total_time += end_mem - start_mem;
 
             //for (int z = 0; z < zmax; z++){
-            //    // start boxcar filter timer
-            //    start_boxcar = omp_get_wtime();
 
             //    // boxcar filter
             //    for (int i = 0; i < blockwidth; i++){
             //        sum_array[i] += lookup_array[i + z];
             //    }
-
-            //    // end boxcar filter timer
-            //    end_boxcar = omp_get_wtime();
-            //    boxcar_total_time += end_boxcar - start_boxcar;
-
-            //    // start max timer
-            //    start_max = omp_get_wtime();
 
             //    // find max
             //    if ((z & (z-1)) == 0){
@@ -722,8 +673,6 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
             //        candidates[num_blocks*z + block_index].power = local_max_power;
             //        candidates[num_blocks*z + block_index].index = local_max_index + block_index*blockwidth;
             //    }
-            //    end_max = omp_get_wtime();
-            //    max_total_time += end_max - start_max;
                 
             //}
 
@@ -752,15 +701,11 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                 candidates[num_blocks*z + block_index].power = local_max_power;
                 candidates[num_blocks*z + block_index].index = local_max_index + block_index*blockwidth;
                 z *= 2;
-            }*/
-        }
+            }
+        }*/
         
     }
 
-    
-    printf("boxcar_total_time = %lf\n", boxcar_total_time);
-    printf("max_total_time = %lf\n", max_total_time);
-    printf("mem_total_time = %lf\n", mem_total_time);
     
 
     // end timer for boxcar filtering
