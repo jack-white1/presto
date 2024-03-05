@@ -914,14 +914,14 @@ int main(int argc, char *argv[]) {
         printf("\t-ncpus [int]\t\tThe number of OpenMP threads to use (default 1)\n");
         printf("\t-zmax [int]\t\tThe max boxcar width (default = 200, similar meaning to zmax in accelsearch)\n");
         printf("\t-numharm [int]\t\tThe maximum number of harmonics to sum (default = 1, options are 1, 2, 3 or 4)\n");
-        printf("\t-tobs [float]\t\tThe observation time in seconds, this must be specified if you want physical frequency/acceleration values.\n");
+        printf("\t-tobs [float]\t\tThe observation time in seconds, this "BOLD"MUST BE SPECIFIED ACCURATELY"RESET" if you want physical frequency/acceleration values.\n");
         printf("\t-sigma [float]\t\tThe sigma threshold (default = 2.0), candidates with sigma below this value will not be written to the output file\n");
         printf("\t-zstep [int]\t\tThe step size in z (default = 2).\n");
         printf("\t-blockwidth [int]\tThe block width (units are r-bins, default = 32768), you will get up to ( rmax * zmax ) / ( blockwidth * zstep ) candidates\n");
         printf("\t-turbomode [int]\t"BOLD ITALIC RED"T"GREEN"U"YELLOW"R"BLUE"B"MAGENTA"O"RESET" mode - increase speed by trading off frequency localisation accuracy (default off = 0, options are 0, 1, 2)\n");
         printf("\t\t\t\t  -turbomode 0: Localise candidates to their exact r-bin frequency location (default setting)\n");
         printf("\t\t\t\t  -turbomode 1: Only localise candidates to their chunk of the frequency spectrum. This will only give the r-bin to within -blockwidth accuracy\n");
-        printf("\t\t\t\t  -turbomode 2: Option 1 and fix -zstep at 2. THIS WILL OVERRIDE THE -zstep FLAG. Automatically enabled if -turbomode 1 and -zstep 2\n\n");
+        printf("\t\t\t\t  -turbomode 2: Option 1 and fix -zstep at 2. THIS WILL OVERRIDE THE -zstep FLAG. Automatically enabled if -turbomode 1 and -zstep 2\n");
         printf("\t\t\t\t  -turbomode 3: (NOT IMPLEMENTED YET) Option 1 and use logarithmically-spaced zsteps. THIS WILL OVERRIDE THE -zstep FLAG. \n\n");
 
         //printf("\t-candidate_sigma_profile\t\tProfile the candidate sigma function and write the results to candidate_sigma_profile.csv (you probably don't want to do this, default = 0)\n");
