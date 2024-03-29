@@ -34,6 +34,7 @@ typedef struct {
     float power;
     long index;
     int z;
+    int harmonic; 
 } candidate_struct;
 
 int compare_candidate_structs_power(const void *a, const void *b) {
@@ -346,7 +347,8 @@ void decimate_array_4(float* input_array, float* output_array, int input_array_l
 void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int magnitudes_array_length, \
                                 int max_boxcar_width, const char *filename, 
                                 float observation_time_seconds, float sigma_threshold, int z_step, \
-                                int blockwidth, int ncpus, int nharmonics, int turbomode, int max_harmonics) {
+                                int blockwidth, int ncpus, int nharmonics, int turbomode, int max_harmonics,
+                                candidate_struct* global_candidates, int* global_candidates_array_index) {
 
     // make a copy of the input magnitudes array
     float* magnitudes_array = malloc(sizeof(float) * magnitudes_array_length);
@@ -359,15 +361,10 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
 
     // Create new filename
     char text_filename[255];
-    if (turbomode == 0){
-        snprintf(text_filename, 255, "%s_ZMAX_%d_NUMHARM_%d.pulscand", base_name, max_boxcar_width,max_harmonics);
-    } else {
-        snprintf(text_filename, 255, "%s_ZMAX_%d_NUMHARM_%d_TURBO_%d.pulscand", base_name, max_boxcar_width,max_harmonics,turbomode);
-    }
+    snprintf(text_filename, 255, "%s_ZMAX_%d_NUMHARM_%d_TURBO_%d.pulscand", base_name, max_boxcar_width,max_harmonics,turbomode);
     
-    
-
-    FILE *text_candidates_file = fopen(text_filename, "a"); // open the file for writing.
+    // open the file for writing.
+    FILE *text_candidates_file = fopen(text_filename, "a");
     if (text_candidates_file == NULL) {
         printf("Could not open file for writing text results.\n");
         return;
@@ -465,7 +462,6 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
     int valid_length = magnitudes_array_length;
     int initial_length = magnitudes_array_length;
 
-    valid_length = magnitudes_array_length;
     double num_independent_trials = ((double)max_boxcar_width)*((double)initial_length)/6.95; // 6.95 from eqn 6 in Anderson & Ransom 2018
 
     int zmax = max_boxcar_width;
@@ -526,9 +522,8 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                     candidates[num_blocks*z + block_index].power = local_max_power;
                     candidates[num_blocks*z + block_index].index = local_max_index + block_index*blockwidth;
                     candidates[num_blocks*z + block_index].z = z;
+                    candidates[num_blocks*z + block_index].harmonic = nharmonics;
                 }
-
-                
             }
         }
     } else if (turbomode == 1){
@@ -575,6 +570,7 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                     candidates[num_blocks*z + block_index].power = local_max_power;
                     candidates[num_blocks*z + block_index].index = local_max_index + block_index*blockwidth;
                     candidates[num_blocks*z + block_index].z = z;
+                    candidates[num_blocks*z + block_index].harmonic = nharmonics;
                 }
 
                 
@@ -620,6 +616,7 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                 candidates[num_blocks*z + block_index].power = local_max_power;
                 candidates[num_blocks*z + block_index].index = local_max_index + block_index*blockwidth;
                 candidates[num_blocks*z + block_index].z = z;
+                candidates[num_blocks*z + block_index].harmonic = nharmonics;
             }
         }
     } else if (turbomode == 3){
@@ -668,19 +665,17 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                     candidates[num_blocks*z + block_index].power = local_max_power;
                     candidates[num_blocks*z + block_index].index = local_max_index + block_index*blockwidth;
                     candidates[num_blocks*z + block_index].z = z;
+                    candidates[num_blocks*z + block_index].harmonic = nharmonics;
                     if (target_z == 0){
                         target_z = 1;
                     } else {
                         target_z = target_z * 2;
                     }
                 }
-
-                
             }
         }
     }
 
-    
 
     // end timer for boxcar filtering
     double end = omp_get_wtime();
@@ -689,8 +684,6 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
     printf("Searching the data took    %f seconds using %d thread(s)\n", time_spent, ncpus);
 
     start = omp_get_wtime();
-
-    
     int degrees_of_freedom = 1;
     if (nharmonics == 1){
         degrees_of_freedom  = 1;
@@ -702,11 +695,22 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
         degrees_of_freedom  = 10;
     }
 
+    for (int i = 0; i < num_blocks * zmax; i++){
+        candidates[i].sigma = candidate_sigma(candidates[i].power*0.5, (candidates[i].z+1)*degrees_of_freedom, num_independent_trials);
+        if (candidates[i].sigma > sigma_threshold){
+            global_candidates[*global_candidates_array_index] = candidates[i];
+            *global_candidates_array_index = *global_candidates_array_index + 1;
+        }
+    }
+
+    /*
+
+
     // count the number of non-zero candidates in the candidates array
     int num_candidates = 0;
     for (int i = 0; i < num_blocks * zmax; i++){
         if (candidates[i].power > 0 ) {
-            candidates[i].sigma = candidate_sigma(candidates[i].power*0.5, candidates[i].z*degrees_of_freedom, num_independent_trials);
+            
             if (candidates[i].sigma > sigma_threshold){
                 num_candidates++;
             }
@@ -722,8 +726,6 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
             candidate_index++;
         }
     }
-
-
 
     // sort final_output_candidates by descending sigma using qsort
     qsort(final_output_candidates, num_candidates, sizeof(candidate_struct), compare_candidate_structs_sigma);
@@ -755,6 +757,7 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
                 nharmonics);
         }
     }
+    */
 
     end = omp_get_wtime();
     time_spent = end - start;
@@ -763,7 +766,7 @@ void recursive_boxcar_filter_cache_optimised(float* input_magnitudes_array, int 
     fclose(text_candidates_file);
     free(base_name);
     free(candidates);
-    free(final_output_candidates);
+    //free(final_output_candidates);
 
 }
 
@@ -887,12 +890,12 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // Get the max_boxcar_width from the command line arguments
+    // Get the zmax from the command line arguments
     // If not provided, default to 200
-    int max_boxcar_width = 200;
+    int zmax = 200;
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-zmax") == 0 && i+1 < argc) {
-            max_boxcar_width = atoi(argv[i+1]);
+            zmax = atoi(argv[i+1]);
         }
     }
 
@@ -984,7 +987,7 @@ int main(int argc, char *argv[]) {
     omp_set_num_threads(ncpus);
 
     int magnitude_array_size;
-    float* magnitudes = compute_magnitude_block_normalization_mad(argv[1], &magnitude_array_size, ncpus, max_boxcar_width);
+    float* magnitudes = compute_magnitude_block_normalization_mad(argv[1], &magnitude_array_size, ncpus, zmax);
 
     if(magnitudes == NULL) {
         printf("Failed to compute magnitudes.\n");
@@ -998,11 +1001,7 @@ int main(int argc, char *argv[]) {
 
     // Create new filename
     char text_filename[255];
-    if (turbomode == 0){
-        snprintf(text_filename, 255, "%s_ZMAX_%d_NUMHARM_%d.pulscand", base_name, max_boxcar_width,nharmonics);
-    } else {
-        snprintf(text_filename, 255, "%s_ZMAX_%d_NUMHARM_%d_TURBO_%d.pulscand", base_name, max_boxcar_width,nharmonics,turbomode);
-    }
+    snprintf(text_filename, 255, "%s_ZMAX_%d_NUMHARM_%d_TURBO_%d.pulscand", base_name, zmax,nharmonics,turbomode);
 
     FILE *text_candidates_file = fopen(text_filename, "w"); // open the file for writing. Make sure you have write access in this directory.
     if (text_candidates_file == NULL) {
@@ -1013,13 +1012,18 @@ int main(int argc, char *argv[]) {
     fprintf(text_candidates_file, "%10s %10s %10s %14s %10s %14s %10s %14s %14s %10s\n", 
         "sigma", "power", "period_ms", "frequency_hz", "rbin", "f-dot", "z", "acceleration", "logp", "harmonic");
     
-    fclose(text_candidates_file);
     
+
+    int num_blocks = (magnitude_array_size + blockwidth - 1) / blockwidth;
+
+    int max_candidates_per_harmonic = zmax*num_blocks;
+    candidate_struct *global_candidates_array = (candidate_struct*) malloc(sizeof(candidate_struct) * nharmonics * max_candidates_per_harmonic);
+    int global_candidates_array_index = 0;
 
     for (int harmonic = 1; harmonic < nharmonics+1; harmonic++){
         recursive_boxcar_filter_cache_optimised(magnitudes, 
             magnitude_array_size, 
-            max_boxcar_width, 
+            zmax, 
             argv[1],
             observation_time_seconds, 
             sigma_threshold,
@@ -1028,8 +1032,63 @@ int main(int argc, char *argv[]) {
             ncpus,
             harmonic,
             turbomode,
-            nharmonics);
+            nharmonics,
+            global_candidates_array,
+            &global_candidates_array_index);
     }
+
+    int num_candidates = global_candidates_array_index;
+
+    qsort(global_candidates_array, num_candidates, sizeof(candidate_struct), compare_candidate_structs_sigma);
+
+    float temp_period_ms;
+    float temp_frequency;
+    float temp_fdot;
+    float temp_acceleration;
+    float temp_logp;
+
+    // write final_output_candidates to text file with physical measurements
+    for (int i = 0; i < num_candidates; i++){
+        if (global_candidates_array[i].sigma > sigma_threshold){
+            temp_period_ms = period_ms_from_frequency(frequency_from_observation_time_seconds(observation_time_seconds,global_candidates_array[i].index));
+            temp_frequency = frequency_from_observation_time_seconds(observation_time_seconds,global_candidates_array[i].index);
+            temp_fdot = fdot_from_boxcar_width(global_candidates_array[i].z, observation_time_seconds);
+            temp_acceleration = acceleration_from_fdot(fdot_from_boxcar_width(global_candidates_array[i].z, observation_time_seconds), frequency_from_observation_time_seconds(observation_time_seconds,global_candidates_array[i].index));
+            int degrees_of_freedom = 1;
+            if (global_candidates_array[i].harmonic == 1){
+                degrees_of_freedom  = 1;
+            } else if (global_candidates_array[i].harmonic == 2){
+                degrees_of_freedom  = 3;
+            } else if (global_candidates_array[i].harmonic == 3){
+                degrees_of_freedom  = 6;
+            } else if (global_candidates_array[i].harmonic == 4){
+                degrees_of_freedom  = 10;
+            } else {
+                printf("ERROR: nharmonics must be 1, 2, 3 or 4\n");
+                return 1;
+            }
+            temp_logp = chi2_logp(global_candidates_array[i].power, degrees_of_freedom * global_candidates_array[i].z * 2);
+            fprintf(text_candidates_file, "%10.6lf %10.4f %10.6f %14.6f %10ld %14.8f %10d %14.6f %14.6f %10d\n", 
+                global_candidates_array[i].sigma,
+                global_candidates_array[i].power,
+                temp_period_ms,
+                temp_frequency,
+                global_candidates_array[i].index,
+                temp_fdot,
+                global_candidates_array[i].z,
+                temp_acceleration,
+                temp_logp,
+                global_candidates_array[i].harmonic);
+        }
+    }
+
+    printf("global_candidates_array_index = %d\n", global_candidates_array_index);
+    for (int i = 0; i < global_candidates_array_index; i++){
+        if (global_candidates_array[i].sigma > sigma_threshold){
+            //printf("sigma = %f, harmonic = %d\n", global_candidates_array[i].sigma, global_candidates_array[i].harmonic);
+        }
+    }
+    fclose(text_candidates_file);
 
     free(magnitudes);
 
@@ -1038,8 +1097,7 @@ int main(int argc, char *argv[]) {
     double time_spent_program = end_program - start_program;
     printf("--------------------------------------------\nTotal time spent was       " GREEN "%f seconds" RESET "\n\n\n", time_spent_program);
 
-    //printf("Data written to .bctxtcand file (text format) and .bccand file (binary format)\n");
-    printf("Data written to .pulscand file (text format)\n");
+    printf("Output written to %s\n", text_filename);
 
     return 0;
 }
